@@ -66,15 +66,6 @@ def test_connection_minimal() -> None:
     assert conn.name == "ANZ"
 
 
-def test_party_aliases() -> None:
-    from nz_akahu_mcp.models import Party
-
-    party = Party.model_validate(load_fixture("parties")["items"][0])
-    assert party.id == "party_001"
-    assert party.account == "acc_chq_001"
-    assert party.type == "PERSONAL"
-
-
 def test_unknown_fields_are_ignored() -> None:
     """Forward compat: new Akahu fields must not break parsing."""
     from nz_akahu_mcp.models import Account
@@ -95,18 +86,23 @@ def test_refresh_result_minimal() -> None:
     assert r.message is None
 
 
-def test_verify_name_result_with_item() -> None:
-    from nz_akahu_mcp.models import VerifyNameResult
-
-    r = VerifyNameResult.model_validate({"success": True, "item": {"matched": True}})
-    assert r.item == {"matched": True}
-
-
 def test_support_request_minimal() -> None:
     from nz_akahu_mcp.models import SupportRequest
 
     r = SupportRequest.model_validate({"success": True})
     assert r.success is True
+
+
+def test_verify_name_result_parses() -> None:
+    from nz_akahu_mcp.models import VerifyNameResult
+
+    r = VerifyNameResult.model_validate({"success": True, "item": {"matched": True}})
+    assert r.success is True
+    assert r.item == {"matched": True}
+
+    r2 = VerifyNameResult.model_validate({"success": False, "message": "Forbidden"})
+    assert r2.success is False
+    assert r2.message == "Forbidden"
 
 
 def test_cursor_null_next() -> None:

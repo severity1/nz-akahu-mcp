@@ -47,13 +47,20 @@ async def get_transactions(
     """List transactions with optional filters.
 
     start_date and end_date are ISO 8601 timestamps the Akahu API filters server-side.
-    account_id, category, min_amount, max_amount are applied client-side.
+    account_id is also pushed server-side via GET /accounts/{id}/transactions when
+    provided (saves transferring data for the user's other accounts). category,
+    min_amount, and max_amount are filtered client-side.
     """
-    collected: list[Transaction] = []
     client = deps.get_client()
-    async for txn in client.iter_transactions(start=start_date, end=end_date):
-        if account_id and txn.account != account_id:
-            continue
+    if account_id is not None:
+        iterator = client.iter_account_transactions(
+            account_id, start=start_date, end=end_date
+        )
+    else:
+        iterator = client.iter_transactions(start=start_date, end=end_date)
+
+    collected: list[Transaction] = []
+    async for txn in iterator:
         if category and (txn.category is None or txn.category.name != category):
             continue
         if min_amount is not None and txn.amount < min_amount:
@@ -71,6 +78,28 @@ async def get_transaction(transaction_id: str) -> dict[str, Any]:
     """Fetch one transaction by id."""
     txn = await deps.get_client().get_transaction(transaction_id)
     return _summarise(txn)
+
+
+@server.tool
+async def get_transactions_by_ids(ids: list[str]) -> dict[str, Any]:
+    """Batch-fetch transactions by their ids (POST /transactions/ids).
+
+    Useful when a webhook delivers a list of changed transaction identifiers,
+    or when an LLM has accumulated several txn ids it wants to inspect together.
+    """
+    txns = await deps.get_client().get_transactions_by_ids(ids)
+    return {"transactions": [_summarise(t) for t in txns]}
+
+
+@server.tool
+async def get_pending_transactions() -> dict[str, Any]:
+    """List all pending (not-yet-settled) transactions across the user's accounts.
+
+    Pending transactions affect your available balance even though they haven't
+    posted yet -- include these in cash-flow projections for near-term accuracy.
+    """
+    txns = await deps.get_client().get_pending_transactions()
+    return {"transactions": [_summarise(t) for t in txns]}
 
 
 @server.tool

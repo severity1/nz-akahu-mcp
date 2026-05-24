@@ -52,10 +52,10 @@ The startup banner makes the current posture visible every time the server boots
 - `accounts/refresh_all_accounts` -> "Refresh data for all your connected accounts. This is rate-limited by your bank."
 - `accounts/refresh_account` -> "Refresh data for account {account_id}. Rate-limited by your bank."
 - `transactions/report_transaction_issue` -> "Report an issue with transaction {transaction_id} to Akahu support staff. Issue type: {issue_type}."
-- `identity/verify_name` -> "Verify the name '{name}' against account {account_id}. This sends an identity check to your bank and may incur a per-call charge."
+- `identity/verify_name` -> "Verify the name '{given_name} {family_name}' (account scope: {account_id}). This sends an identity check to your bank and may incur a per-call charge."
 
 ## What each write actually does
 
 - **refresh_*** -> Akahu queues a re-fetch of balances/transactions from the bank. Subject to rate limits set by the bank, not by Akahu.
 - **report_transaction_issue** -> creates a support ticket visible to Akahu staff. Used for enrichment corrections (wrong merchant, wrong category) or duplicate detection.
-- **verify_name** -> asks the bank to confirm whether a given name matches the account holder's records. Used for AML/payee verification. **Some banks charge per call.**
+- **verify_name** -> hits POST /verify/name (or /verify/name/{account_id} when scoped) to ask Akahu/your bank whether a given name matches the account holder record. Used for AML/payee verification. **Some banks charge per call. Requires a Personal-App identity-scope grant or returns 403.**

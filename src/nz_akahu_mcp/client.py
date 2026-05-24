@@ -25,10 +25,7 @@ import httpx
 from nz_akahu_mcp.config import AkahuConfig
 from nz_akahu_mcp.models import (
     Account,
-    Category,
-    Connection,
     Me,
-    Party,
     RefreshResult,
     SupportRequest,
     Transaction,
@@ -79,7 +76,7 @@ class AkahuClient:
         path: str,
         *,
         params: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
+        json: Any = None,
     ) -> dict[str, Any]:
         """Send one request with retry/backoff. Returns parsed JSON dict."""
         last_exc: Exception | None = None
@@ -193,17 +190,73 @@ class AkahuClient:
                 return
             cursor = next_cursor
 
-    async def list_categories(self) -> list[Category]:
-        data = await self._request("GET", "/categories")
-        return [Category.model_validate(item) for item in data["items"]]
+    async def get_pending_transactions(self) -> list[Transaction]:
+        """All pending transactions across the user's connected accounts."""
+        data = await self._request("GET", "/transactions/pending")
+        return [Transaction.model_validate(item) for item in data["items"]]
 
-    async def list_connections(self) -> list[Connection]:
-        data = await self._request("GET", "/connections")
-        return [Connection.model_validate(item) for item in data["items"]]
+    async def get_account_pending_transactions(self, account_id: str) -> list[Transaction]:
+        """Pending transactions for one specific account."""
+        data = await self._request("GET", f"/accounts/{account_id}/transactions/pending")
+        return [Transaction.model_validate(item) for item in data["items"]]
 
-    async def list_parties(self) -> list[Party]:
-        data = await self._request("GET", "/parties")
-        return [Party.model_validate(item) for item in data["items"]]
+    async def get_account_transactions(
+        self,
+        account_id: str,
+        *,
+        start: str | None = None,
+        end: str | None = None,
+        cursor: str | None = None,
+    ) -> tuple[list[Transaction], str | None]:
+        """Settled transactions for one account, paged.
+
+        Returns (items, next_cursor). next_cursor is None on the last page.
+        """
+        params: dict[str, Any] = {}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        if cursor:
+            params["cursor"] = cursor
+        data = await self._request(
+            "GET", f"/accounts/{account_id}/transactions", params=params or None
+        )
+        items = [Transaction.model_validate(item) for item in data["items"]]
+        next_cursor = (data.get("cursor") or {}).get("next")
+        return items, next_cursor
+
+    async def iter_account_transactions(
+        self,
+        account_id: str,
+        *,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> AsyncIterator[Transaction]:
+        """Yield transactions for one account, transparently paginating."""
+        cursor: str | None = None
+        while True:
+            items, cursor = await self.get_account_transactions(
+                account_id, start=start, end=end, cursor=cursor
+            )
+            for item in items:
+                yield item
+            if not cursor:
+                return
+
+    async def get_transactions_by_ids(self, ids: list[str]) -> list[Transaction]:
+        """Batch lookup by transaction id.
+
+        Akahu wire shape: POST /transactions/ids with body = JSON array of strings.
+        See https://developers.akahu.nz/reference/post_transactions-ids.
+        """
+        data = await self._request("POST", "/transactions/ids", json=ids)
+        return [Transaction.model_validate(item) for item in data["items"]]
+
+    # Note: /categories, /connections, /parties, /identity/{id}/verify-name are
+    # app-scoped on Akahu and therefore unreachable from a Personal App. Not
+    # implemented here. /parties returns 403 on Personal Apps despite the doc
+    # marking it user-scoped; treat that as effectively app-scoped for our purposes.
 
     # ---------- write endpoints ----------
 
@@ -224,18 +277,53 @@ class AkahuClient:
         comment: str | None = None,
         other_transaction_id: str | None = None,
     ) -> SupportRequest:
-        body: dict[str, Any] = {"issue_type": issue_type}
+        """Submit a support ticket about a transaction.
+
+        Wire shape per https://developers.akahu.nz/reference/post_support-transaction-id:
+          path:  /support/{transaction_id}   (NOT /support/transaction/{id})
+          body:  {"type": ..., "other_id": ..., "fields": [...], "comment": "..."}
+                 The field name is `type` (not `issue_type`) and `other_id`
+                 (not `other_transaction_id`).
+        """
+        body: dict[str, Any] = {"type": issue_type}
         if fields:
             body["fields"] = fields
         if comment:
             body["comment"] = comment
         if other_transaction_id:
-            body["other_transaction_id"] = other_transaction_id
-        data = await self._request("POST", f"/support/transaction/{transaction_id}", json=body)
+            body["other_id"] = other_transaction_id
+        data = await self._request("POST", f"/support/{transaction_id}", json=body)
         return SupportRequest.model_validate(data)
 
-    async def verify_name(self, account_id: str, name: str) -> VerifyNameResult:
-        data = await self._request(
-            "POST", f"/identity/{account_id}/verify-name", json={"name": name}
-        )
+    async def verify_name(
+        self,
+        *,
+        family_name: str,
+        given_name: str | None = None,
+        middle_name: str | None = None,
+        initials: list[str] | None = None,
+        account_id: str | None = None,
+    ) -> VerifyNameResult:
+        """Ask Akahu to confirm whether the given name matches the account holder.
+
+        Wire shape per https://developers.akahu.nz/reference/post_verify-name :
+          path:  /verify/name             (when account_id is None - all sources)
+                 /verify/name/{account_id} (scoped to one account)
+          body:  required `family_name`; optional `given_name`, `middle_name`,
+                 `initials`.
+
+        Note: POST /identity/{id}/verify-name (similar-looking endpoint) is
+        app-scoped and unreachable from a Personal App; we don't use it.
+        /verify/name is documented user-scoped but requires the relevant scope
+        grant on the Personal App. Without that grant Akahu returns 403.
+        """
+        body: dict[str, Any] = {"family_name": family_name}
+        if given_name:
+            body["given_name"] = given_name
+        if middle_name:
+            body["middle_name"] = middle_name
+        if initials:
+            body["initials"] = initials
+        path = "/verify/name" if account_id is None else f"/verify/name/{account_id}"
+        data = await self._request("POST", path, json=body)
         return VerifyNameResult.model_validate(data)

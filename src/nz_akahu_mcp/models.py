@@ -143,13 +143,10 @@ class Me(_Base):
     preferences: Preferences | None = None
 
 
-class Party(_Base):
-    id: str = Field(alias="_id")
-    account: str | None = Field(default=None, alias="_account")
-    type: str
-    name: str
-    address: str | None = None
-    tax_number: str | None = None
+# Party / Category / Connection list endpoints are app-scoped on Akahu and
+# therefore unreachable from a Personal App. Party has no nested role in any
+# other model, so the standalone class is omitted here. Category and Connection
+# remain because Akahu inlines them under Transaction.category / Account.connection.
 
 
 # ---------- write results ----------
@@ -166,6 +163,13 @@ class SupportRequest(_Base):
 
 
 class VerifyNameResult(_Base):
+    """Result envelope for POST /verify/name and POST /verify/name/{id}.
+
+    Akahu returns `success: true` plus an `item` dict whose shape is
+    documented at https://developers.akahu.nz/docs/enduring-verify-name.
+    We keep `item` permissive so future fields don't break parsing.
+    """
+
     success: bool
     item: dict[str, Any] | None = None
     message: str | None = None

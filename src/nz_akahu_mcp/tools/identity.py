@@ -1,4 +1,12 @@
-"""Identity sub-server: 3 read tools + 1 write tool (always elicits)."""
+"""Identity sub-server: 1 read tool + 1 write tool (always elicits).
+
+Personal-App scope only. /categories, /parties, /connections, /identity/{id}
+and POST /identity/{id}/verify-name are all app-scoped on Akahu
+(see https://developers.akahu.nz/reference/api-akahu-io-authentication#app-scoped-endpoints)
+and therefore unreachable -- not exposed as tools.
+
+The user-scoped POST /verify/name endpoint IS exposed via `verify_name` below.
+"""
 
 from __future__ import annotations
 
@@ -26,51 +34,42 @@ async def get_me() -> dict[str, Any]:
     }
 
 
-@server.tool
-async def list_parties() -> dict[str, Any]:
-    """List counterparties known to Akahu for the user's accounts."""
-    parties = await deps.get_client().list_parties()
-    return {
-        "parties": [
-            {
-                "id": p.id,
-                "account_id": p.account,
-                "type": p.type,
-                "name": p.name,
-                "address": p.address,
-            }
-            for p in parties
-        ]
-    }
-
-
-@server.tool
-async def list_categories() -> dict[str, Any]:
-    """List the NZFCC category reference used by Akahu transaction enrichment."""
-    cats = await deps.get_client().list_categories()
-    return {
-        "categories": [
-            {
-                "id": c.id,
-                "name": c.name,
-                "groups": {gk: gv.name for gk, gv in c.groups.items()},
-            }
-            for c in cats
-        ]
-    }
-
-
 # Not automatable: identity verification may incur a per-call charge from the
 # bank and is identity-sensitive. Human-in-the-loop is the safer default.
 @server.tool
 @require_write_consent(
-    "Verify the name '{name}' against account {account_id}. This sends an "
-    "identity check to your bank and may incur a per-call charge.",
+    "Verify the name '{given_name} {family_name}' "
+    "(account scope: {account_id}). This sends an identity check to your bank "
+    "and may incur a per-call charge.",
     automatable=False,
 )
-async def verify_name(*, ctx: Context, account_id: str, name: str) -> dict[str, Any]:
-    """Ask Akahu to confirm whether the given name matches the account holder."""
-    result = await deps.get_client().verify_name(account_id, name)
+async def verify_name(
+    *,
+    ctx: Context,
+    family_name: str,
+    given_name: str | None = None,
+    middle_name: str | None = None,
+    initials: list[str] | None = None,
+    account_id: str | None = None,
+) -> dict[str, Any]:
+    """Ask Akahu to verify a name against the account holder.
+
+    family_name is required; given_name / middle_name / initials are optional.
+    If account_id is provided, verification is scoped to that one account
+    (POST /verify/name/{account_id}); otherwise Akahu matches against every
+    identity source across all the user's connected accounts (POST /verify/name).
+
+    Returns Akahu's match result. Note: this endpoint is documented user-scoped
+    but requires the appropriate Personal-App scope grant in your Akahu portal.
+    Without that grant Akahu returns 403 Forbidden.
+    """
+    result = await deps.get_client().verify_name(
+        family_name=family_name,
+        given_name=given_name,
+        middle_name=middle_name,
+        initials=initials,
+        account_id=account_id,
+    )
     return {
         "success": result.success,
         "item": result.item,

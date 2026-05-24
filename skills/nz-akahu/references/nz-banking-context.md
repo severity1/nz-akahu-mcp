@@ -32,4 +32,4 @@ KiwiSaver providers connect through "classic" Akahu connections that refresh slo
 
 ## NZFCC categories
 
-Akahu enriches transactions against the New Zealand Financial Capability Categories (NZFCC) reference. `list_categories` exposes the full taxonomy. The `personal_finance` group is the user-facing grouping (Bills / Food / Lifestyle / etc.); other groups (`merchant`, `industry`) exist for more specialised use cases.
+Akahu enriches transactions against the New Zealand Financial Capability Categories (NZFCC) reference. The full taxonomy lives on Akahu's `/categories` endpoint, which is app-scoped and unreachable from a Personal App, so this server does not ship a `list_categories` tool. In practice the loss is small: every transaction already carries its `category.name` and the `personal_finance` group label inline, so analysis tools (`analyse_spending`, `top_merchants`, `find_recurring_payments`) work without ever needing the global taxonomy.

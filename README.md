@@ -4,7 +4,7 @@ Unofficial MCP server for the [Akahu](https://akahu.nz) open-finance API
 (New Zealand). Bring your own Akahu credentials; run locally over stdio; no
 hosted backend.
 
-- **22 tools** covering every Akahu capability that works with a Personal App: account & balance reads, transaction reads, spending insights, recurring detection, cash-flow forecasting, identity reads, refresh writes, support-ticket writes, identity-verify writes.
+- **23 tools** covering every user-scoped Akahu endpoint: account & balance reads, settled & pending transaction reads, batch lookup by id, spending insights, recurring detection, cash-flow forecasting, identity read, refresh writes, support-ticket writes, name verification.
 - **Read-only by default.** All write tools refuse until you flip a flag.
 - **Per-call consent for every write.** Even with writes enabled, Claude asks you to confirm each one.
 - **Personal Apps only.** Payments and webhooks are full-app features and are out of scope for v1.
@@ -38,7 +38,7 @@ Pick whichever fits your situation.
 ```
 
 This installs the plugin, which contributes both:
-- The `nz-akahu` MCP server (all 22 tools)
+- The `nz-akahu` MCP server (all 23 tools)
 - The bundled `nz-akahu` skill (NZ banking context, advice boundaries, write-mode safety guidance)
 
 To enable the plugin in the current project, run `/plugin` and toggle it on.
@@ -200,7 +200,6 @@ elicit prompt for the **automatable subset only**:
 | `accounts/refresh_all_accounts`     | YES               | Idempotent, rate-limited, real automation use case                           |
 | `accounts/refresh_account`          | YES               | Same                                                                         |
 | `transactions/report_transaction_issue` | NO            | Sends ticket to a human at Akahu support; never auto                         |
-| `identity/verify_name`              | NO                | May incur bank charge; identity-sensitive                                    |
 
 **Recommendation:** leave this OFF for ad-hoc Claude conversations. Only set it
 on if you're scripting refresh cycles. Each bypassed call logs at INFO with the
@@ -213,16 +212,19 @@ there's nothing to bypass).
 
 ## Tool reference
 
-### Read tools (18)
+### Read tools (19)
 
 **`accounts/`**
 - `list_accounts` - all connected accounts (masked, formatted balances)
 - `get_account(account_id)` - single account details
 - `get_account_balance(account_id)` - balance only
+- `get_pending_transactions(account_id)` - not-yet-settled debits/credits for one account
 
 **`transactions/`**
 - `get_transactions(account_id?, start_date?, end_date?, category?, min_amount?, max_amount?, limit=100)`
 - `get_transaction(transaction_id)`
+- `get_transactions_by_ids(ids)` - batch fetch by Akahu txn id (useful for webhook follow-up)
+- `get_pending_transactions` - not-yet-settled across all accounts
 - `search_transactions(query, limit=50)` - substring across description + merchant.name
 
 **`insights/`**
@@ -240,15 +242,13 @@ there's nothing to bypass).
 
 **`identity/`**
 - `get_me`
-- `list_parties`
-- `list_categories` - NZFCC category taxonomy
 
 ### Write tools (4)
 
 - `accounts/refresh_all_accounts` *(bypass-eligible)*
 - `accounts/refresh_account(account_id)` *(bypass-eligible)*
 - `transactions/report_transaction_issue(transaction_id, issue_type, fields?, comment?, other_transaction_id?)` *(always elicits)*
-- `identity/verify_name(account_id, name)` *(always elicits)*
+- `identity/verify_name(family_name, given_name?, middle_name?, initials?, account_id?)` *(always elicits)* - requires Personal-App scope grant; without it Akahu returns 403
 
 ## Privacy & security
 
@@ -259,13 +259,35 @@ there's nothing to bypass).
 
 ## Personal Apps only
 
-This server uses the Akahu Personal App model (per-user OAuth). Full-app
-features are out of scope for v1:
+This server uses the Akahu Personal App model (per-user OAuth). Per the
+[Akahu authentication docs](https://developers.akahu.nz/reference/api-akahu-io-authentication#app-scoped-endpoints):
+
+> App-scoped endpoints are not available to Personal Apps.
+
+That puts the following Akahu endpoints permanently out of scope for v1 and
+they are not exposed as tools (they would always 4xx):
+
+- `/categories` - NZFCC category taxonomy (transactions carry their category inline so this rarely matters)
+- `/connections` - supported-bank list
+- `/identity/{id}/verify-name` - name-against-account verification (the user-scoped `/verify/name` is exposed instead via `identity/verify_name`)
+
+Full-app features are also out of scope for v1:
 
 - Payments (`make_payment`, `cancel_payment`, etc.)
 - Webhooks (`subscribe_webhook`, etc.)
 
 These are tracked for a hypothetical v2.
+
+### Scope-grant gotchas
+
+Two endpoints in the user-scoped surface require a Personal-App scope you can
+toggle at https://my.akahu.nz/developers. Without the grant, Akahu returns 403:
+
+- `GET /parties` - counterparty list (we DON'T ship a tool for this since it's
+  consistently 403 on Personal Apps; flag if you want it added)
+- `POST /verify/name` and `POST /verify/name/{id}` - we ship these as
+  `identity/verify_name`. If you see "Forbidden" responses, enable the relevant
+  identity scope on your Personal App and try again.
 
 ## Releasing
 

@@ -119,30 +119,6 @@ async def test_iter_transactions_terminates_on_null_cursor(
     assert len(collected) == 3
 
 
-async def test_list_categories(akahu_client: Any, respx_mock: respx.MockRouter) -> None:
-    respx_mock.get("/categories").mock(
-        return_value=httpx.Response(200, json=load_fixture("categories"))
-    )
-    cats = await akahu_client.list_categories()
-    assert len(cats) == 3
-
-
-async def test_list_connections(akahu_client: Any, respx_mock: respx.MockRouter) -> None:
-    respx_mock.get("/connections").mock(
-        return_value=httpx.Response(200, json=load_fixture("connections"))
-    )
-    conns = await akahu_client.list_connections()
-    assert len(conns) == 2
-
-
-async def test_list_parties(akahu_client: Any, respx_mock: respx.MockRouter) -> None:
-    respx_mock.get("/parties").mock(
-        return_value=httpx.Response(200, json=load_fixture("parties"))
-    )
-    parties = await akahu_client.list_parties()
-    assert len(parties) == 1
-
-
 # ----- write endpoints -----
 
 
@@ -165,7 +141,8 @@ async def test_refresh_one(akahu_client: Any, respx_mock: respx.MockRouter) -> N
 async def test_report_transaction_issue(
     akahu_client: Any, respx_mock: respx.MockRouter
 ) -> None:
-    route = respx_mock.post("/support/transaction/txn_001").mock(
+    """Wire shape must match Akahu's actual contract: /support/{txn_id} with type+other_id."""
+    route = respx_mock.post("/support/txn_001").mock(
         return_value=httpx.Response(200, json={"success": True})
     )
     result = await akahu_client.report_transaction_issue(
@@ -177,17 +154,143 @@ async def test_report_transaction_issue(
     assert result.success is True
     body = route.calls.last.request.content
     assert b"ENRICHMENT_ERROR" in body
+    assert b'"type"' in body  # not "issue_type"
     assert b"description" in body
+    assert b"Mislabelled merchant" in body
 
 
-async def test_verify_name(akahu_client: Any, respx_mock: respx.MockRouter) -> None:
-    route = respx_mock.post("/identity/acc_chq_001/verify-name").mock(
+async def test_report_transaction_issue_duplicate_uses_other_id(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    """DUPLICATE issue must use the 'other_id' field name in the body."""
+    route = respx_mock.post("/support/txn_001").mock(
+        return_value=httpx.Response(200, json={"success": True})
+    )
+    await akahu_client.report_transaction_issue(
+        "txn_001", issue_type="DUPLICATE", other_transaction_id="txn_002"
+    )
+    body = route.calls.last.request.content
+    assert b'"other_id"' in body  # not "other_transaction_id"
+    assert b"txn_002" in body
+    assert b'"other_transaction_id"' not in body
+
+
+# ----- new user-scoped endpoints -----
+
+
+async def test_get_pending_transactions(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    respx_mock.get("/transactions/pending").mock(
+        return_value=httpx.Response(200, json=load_fixture("transactions"))
+    )
+    txns = await akahu_client.get_pending_transactions()
+    assert len(txns) == 3
+
+
+async def test_get_account_pending_transactions(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    respx_mock.get("/accounts/acc_chq_001/transactions/pending").mock(
+        return_value=httpx.Response(200, json={"success": True, "items": []})
+    )
+    txns = await akahu_client.get_account_pending_transactions("acc_chq_001")
+    assert txns == []
+
+
+async def test_get_account_transactions(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    respx_mock.get("/accounts/acc_chq_001/transactions").mock(
+        return_value=httpx.Response(200, json=load_fixture("transactions"))
+    )
+    items, next_cursor = await akahu_client.get_account_transactions("acc_chq_001")
+    assert len(items) == 3
+    assert next_cursor is None
+
+
+async def test_get_account_transactions_with_params(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    page = {"success": True, "items": [], "cursor": {"next": "CUR2"}}
+    route = respx_mock.get("/accounts/acc_chq_001/transactions").mock(
+        return_value=httpx.Response(200, json=page)
+    )
+    items, next_cursor = await akahu_client.get_account_transactions(
+        "acc_chq_001", start="2026-01-01T00:00:00Z", end="2026-01-31T00:00:00Z", cursor="CUR1"
+    )
+    assert items == []
+    assert next_cursor == "CUR2"
+    qs = dict(route.calls.last.request.url.params)
+    assert qs == {"start": "2026-01-01T00:00:00Z", "end": "2026-01-31T00:00:00Z", "cursor": "CUR1"}
+
+
+async def test_iter_account_transactions_paginates(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    base = load_fixture("transactions")
+    page1 = {"success": True, "items": base["items"][:2], "cursor": {"next": "CUR_P2"}}
+    page2 = {"success": True, "items": base["items"][2:], "cursor": {"next": None}}
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("cursor") == "CUR_P2":
+            return httpx.Response(200, json=page2)
+        return httpx.Response(200, json=page1)
+
+    respx_mock.get("/accounts/acc_chq_001/transactions").mock(side_effect=respond)
+    collected = [t async for t in akahu_client.iter_account_transactions("acc_chq_001")]
+    assert len(collected) == 3
+
+
+async def test_get_transactions_by_ids(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    """Body must be a JSON array of strings, not an object."""
+    route = respx_mock.post("/transactions/ids").mock(
+        return_value=httpx.Response(200, json=load_fixture("transactions"))
+    )
+    txns = await akahu_client.get_transactions_by_ids(["txn_001", "txn_002"])
+    assert len(txns) == 3
+    body = route.calls.last.request.content
+    # Body should be a JSON array (starts with [, not {)
+    assert body.lstrip().startswith(b"[")
+    assert b"txn_001" in body
+    assert b"txn_002" in body
+
+
+async def test_verify_name_global_path(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    """Without account_id, hits POST /verify/name (no id segment)."""
+    route = respx_mock.post("/verify/name").mock(
         return_value=httpx.Response(200, json={"success": True, "item": {"matched": True}})
     )
-    result = await akahu_client.verify_name("acc_chq_001", "Hemi Anderson")
+    result = await akahu_client.verify_name(family_name="Anderson")
     assert result.success is True
     body = route.calls.last.request.content
-    assert b"Hemi Anderson" in body
+    assert b"Anderson" in body
+    assert b"family_name" in body
+
+
+async def test_verify_name_account_path(
+    akahu_client: Any, respx_mock: respx.MockRouter
+) -> None:
+    """With account_id, hits POST /verify/name/{account_id}."""
+    route = respx_mock.post("/verify/name/acc_chq_001").mock(
+        return_value=httpx.Response(200, json={"success": True, "item": {"matched": False}})
+    )
+    result = await akahu_client.verify_name(
+        family_name="Anderson",
+        given_name="Hemi",
+        middle_name="W",
+        initials=["H", "W"],
+        account_id="acc_chq_001",
+    )
+    assert result.success is True
+    body = route.calls.last.request.content
+    assert b"given_name" in body
+    assert b"middle_name" in body
+    assert b"initials" in body
 
 
 # ----- retry / backoff -----

@@ -1,4 +1,4 @@
-"""Tests for the identity sub-server: 3 read + 1 write (always elicits)."""
+"""Tests for the identity sub-server: 1 read + 1 write (always elicits)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from nz_akahu_mcp.models import Category, Me, Party, VerifyNameResult
+from nz_akahu_mcp.models import Me, VerifyNameResult
 from tests.conftest import load_fixture
 
 
@@ -16,12 +16,8 @@ def patched_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     from nz_akahu_mcp import deps
 
     me = Me.model_validate(load_fixture("me")["item"])
-    parties = [Party.model_validate(i) for i in load_fixture("parties")["items"]]
-    cats = [Category.model_validate(i) for i in load_fixture("categories")["items"]]
     client = MagicMock()
     client.get_me = AsyncMock(return_value=me)
-    client.list_parties = AsyncMock(return_value=parties)
-    client.list_categories = AsyncMock(return_value=cats)
     client.verify_name = AsyncMock(
         return_value=VerifyNameResult(success=True, item={"matched": True})
     )
@@ -53,28 +49,6 @@ async def test_get_me_no_profile(fake_env: None, monkeypatch: pytest.MonkeyPatch
     assert result["name"] is None
 
 
-# ---------- list_parties ----------
-
-
-async def test_list_parties(fake_env: None, patched_client: MagicMock) -> None:
-    from nz_akahu_mcp.tools.identity import list_parties
-
-    result = await list_parties()
-    assert len(result["parties"]) == 1
-    assert result["parties"][0]["name"] == "Hemi Anderson"
-
-
-# ---------- list_categories ----------
-
-
-async def test_list_categories(fake_env: None, patched_client: MagicMock) -> None:
-    from nz_akahu_mcp.tools.identity import list_categories
-
-    result = await list_categories()
-    assert len(result["categories"]) == 3
-    assert all("id" in c and "name" in c for c in result["categories"])
-
-
 # ---------- verify_name (write, always elicits) ----------
 
 
@@ -86,21 +60,54 @@ async def test_verify_name_blocks_in_readonly(
 
     ctx = ctx_factory()
     with pytest.raises(ReadOnlyError):
-        await verify_name(ctx=ctx, account_id="acc_chq_001", name="Hemi Anderson")
+        await verify_name(ctx=ctx, family_name="Anderson")
 
 
-async def test_verify_name_accept(
+async def test_verify_name_global_accept(
     writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
 ) -> None:
+    """No account_id -> global verify path."""
     from nz_akahu_mcp.tools.identity import verify_name
 
     ctx = ctx_factory(elicit_action="accept")
-    result = await verify_name(ctx=ctx, account_id="acc_chq_001", name="Hemi Anderson")
+    result = await verify_name(
+        ctx=ctx, family_name="Anderson", given_name="Hemi"
+    )
     assert result["success"] is True
-    patched_client.verify_name.assert_awaited_once_with("acc_chq_001", "Hemi Anderson")
+    patched_client.verify_name.assert_awaited_once_with(
+        family_name="Anderson",
+        given_name="Hemi",
+        middle_name=None,
+        initials=None,
+        account_id=None,
+    )
+
+
+async def test_verify_name_account_scoped_accept(
+    writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
+) -> None:
+    """With account_id -> account-scoped verify path; elicit prompt mentions account."""
+    from nz_akahu_mcp.tools.identity import verify_name
+
+    ctx = ctx_factory(elicit_action="accept")
+    await verify_name(
+        ctx=ctx,
+        family_name="Anderson",
+        given_name="Hemi",
+        middle_name="W",
+        initials=["H", "W"],
+        account_id="acc_chq_001",
+    )
     msg = ctx.elicit.await_args[0][0]
-    assert "Hemi Anderson" in msg
     assert "acc_chq_001" in msg
+    assert "Hemi Anderson" in msg
+    patched_client.verify_name.assert_awaited_once_with(
+        family_name="Anderson",
+        given_name="Hemi",
+        middle_name="W",
+        initials=["H", "W"],
+        account_id="acc_chq_001",
+    )
 
 
 async def test_verify_name_decline(
@@ -111,7 +118,7 @@ async def test_verify_name_decline(
 
     ctx = ctx_factory(elicit_action="decline")
     with pytest.raises(ElicitationDeclinedError):
-        await verify_name(ctx=ctx, account_id="acc_chq_001", name="Hemi")
+        await verify_name(ctx=ctx, family_name="Anderson")
 
 
 async def test_verify_name_cancel(
@@ -122,7 +129,7 @@ async def test_verify_name_cancel(
 
     ctx = ctx_factory(elicit_action="cancel")
     with pytest.raises(ElicitationDeclinedError):
-        await verify_name(ctx=ctx, account_id="acc_chq_001", name="Hemi")
+        await verify_name(ctx=ctx, family_name="Anderson")
 
 
 async def test_verify_name_still_elicits_under_bypass(
@@ -132,13 +139,13 @@ async def test_verify_name_still_elicits_under_bypass(
     from nz_akahu_mcp.tools.identity import verify_name
 
     ctx = ctx_factory(elicit_action="accept")
-    await verify_name(ctx=ctx, account_id="acc_chq_001", name="Hemi")
+    await verify_name(ctx=ctx, family_name="Anderson")
     ctx.elicit.assert_awaited_once()
 
 
-async def test_server_registers_four_tools(fake_env: None) -> None:
+async def test_server_registers_two_tools(fake_env: None) -> None:
     from nz_akahu_mcp.tools.identity import server
 
     tools = await server.list_tools()
     names = {t.name for t in tools}
-    assert names == {"get_me", "list_parties", "list_categories", "verify_name"}
+    assert names == {"get_me", "verify_name"}

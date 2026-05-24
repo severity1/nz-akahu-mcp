@@ -104,11 +104,11 @@ async def test_iter_transactions_passes_start_end(
 async def test_report_issue_minimal_body(
     fake_env: None, respx_mock: respx.MockRouter
 ) -> None:
-    """If fields/comment/other are all absent, the body must only have issue_type."""
+    """If fields/comment/other are all absent, the body must only have type."""
     from nz_akahu_mcp.client import AkahuClient
     from nz_akahu_mcp.config import AkahuConfig
 
-    route = respx_mock.post("/support/transaction/txn_a").mock(
+    route = respx_mock.post("/support/txn_a").mock(
         return_value=httpx.Response(200, json={"success": True})
     )
     client = AkahuClient(AkahuConfig())
@@ -120,17 +120,17 @@ async def test_report_issue_minimal_body(
     assert b"DUPLICATE" in body
     assert b"fields" not in body
     assert b"comment" not in body
-    assert b"other_transaction_id" not in body
+    assert b"other_id" not in body
 
 
-async def test_report_issue_with_other_txn(
+async def test_report_issue_with_other_id(
     fake_env: None, respx_mock: respx.MockRouter
 ) -> None:
-    """The other_transaction_id field must land in the request body."""
+    """The other_id field (not other_transaction_id) must land in the request body."""
     from nz_akahu_mcp.client import AkahuClient
     from nz_akahu_mcp.config import AkahuConfig
 
-    route = respx_mock.post("/support/transaction/txn_a").mock(
+    route = respx_mock.post("/support/txn_a").mock(
         return_value=httpx.Response(200, json={"success": True})
     )
     client = AkahuClient(AkahuConfig())
@@ -141,8 +141,9 @@ async def test_report_issue_with_other_txn(
     finally:
         await client.aclose()
     body = route.calls.last.request.content
-    assert b"other_transaction_id" in body
+    assert b'"other_id"' in body
     assert b"txn_b" in body
+    assert b'"other_transaction_id"' not in body
 
 
 # ---------- insights: _group_key without merchant ----------

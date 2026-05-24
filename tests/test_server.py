@@ -7,22 +7,25 @@ import logging
 import pytest
 
 
-async def test_root_server_exposes_all_22_tools(fake_env: None) -> None:
+async def test_root_server_exposes_all_23_tools(fake_env: None) -> None:
     from nz_akahu_mcp.server import build_server
 
     mcp = build_server()
     tools = await mcp.list_tools()
     names = {t.name for t in tools}
     expected = {
-        # accounts (5)
+        # accounts (6)
         "accounts_list_accounts",
         "accounts_get_account",
         "accounts_get_account_balance",
+        "accounts_get_pending_transactions",
         "accounts_refresh_all_accounts",
         "accounts_refresh_account",
-        # transactions (4)
+        # transactions (6)
         "transactions_get_transactions",
         "transactions_get_transaction",
+        "transactions_get_transactions_by_ids",
+        "transactions_get_pending_transactions",
         "transactions_search_transactions",
         "transactions_report_transaction_issue",
         # insights (6)
@@ -36,10 +39,8 @@ async def test_root_server_exposes_all_22_tools(fake_env: None) -> None:
         "planning_project_balance",
         "planning_upcoming_recurring",
         "planning_savings_capacity",
-        # identity (4)
+        # identity (2) -- /categories, /parties, /identity/{id}/verify-name are app-scoped
         "identity_get_me",
-        "identity_list_parties",
-        "identity_list_categories",
         "identity_verify_name",
     }
     assert names == expected

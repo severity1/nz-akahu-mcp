@@ -43,6 +43,32 @@ async def get_account(account_id: str) -> dict[str, Any]:
 
 
 @server.tool
+async def get_pending_transactions(account_id: str) -> dict[str, Any]:
+    """List pending (not-yet-settled) transactions for one account.
+
+    Pending entries affect available balance immediately; include them in
+    short-horizon balance projections for that account.
+    """
+    from nz_akahu_mcp.formatting import format_nzd
+
+    txns = await deps.get_client().get_account_pending_transactions(account_id)
+    return {
+        "account_id": account_id,
+        "transactions": [
+            {
+                "id": t.id,
+                "date": t.date.date().isoformat(),
+                "description": t.description,
+                "amount": format_nzd(t.amount),
+                "amount_raw": t.amount,
+                "type": t.type,
+            }
+            for t in txns
+        ],
+    }
+
+
+@server.tool
 async def get_account_balance(account_id: str) -> dict[str, Any]:
     """Return just the balance for an account (lighter than full account details)."""
     account = await deps.get_client().get_account(account_id)

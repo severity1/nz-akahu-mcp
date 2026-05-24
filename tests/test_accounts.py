@@ -238,7 +238,49 @@ async def test_refresh_account_bypassed_when_automation_on(
     ctx.elicit.assert_not_awaited()
 
 
-async def test_server_registers_five_tools(fake_env: None) -> None:
+# ---------- get_pending_transactions (per-account) ----------
+
+
+async def test_account_pending_transactions(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.models import Transaction
+    from nz_akahu_mcp.tools.accounts import get_pending_transactions
+
+    txn = Transaction.model_validate(
+        {
+            "_id": "ptxn_1",
+            "_account": "acc_chq_001",
+            "date": "2026-05-22T00:00:00Z",
+            "description": "PENDING - COFFEE",
+            "amount": -5.50,
+            "type": "EFTPOS",
+        }
+    )
+    client = MagicMock()
+    client.get_account_pending_transactions = AsyncMock(return_value=[txn])
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await get_pending_transactions(account_id="acc_chq_001")
+    assert result["account_id"] == "acc_chq_001"
+    assert len(result["transactions"]) == 1
+    assert result["transactions"][0]["amount"] == "-$5.50"
+
+
+async def test_account_pending_transactions_empty(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.tools.accounts import get_pending_transactions
+
+    client = MagicMock()
+    client.get_account_pending_transactions = AsyncMock(return_value=[])
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await get_pending_transactions(account_id="acc_chq_001")
+    assert result["transactions"] == []
+
+
+async def test_server_registers_six_tools(fake_env: None) -> None:
     from nz_akahu_mcp.tools.accounts import server
 
     tools = await server.list_tools()
@@ -249,4 +291,5 @@ async def test_server_registers_five_tools(fake_env: None) -> None:
         "get_account_balance",
         "refresh_all_accounts",
         "refresh_account",
+        "get_pending_transactions",
     }

@@ -30,6 +30,12 @@ def patched_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     client = MagicMock()
     txns = _fake_txns()
     client.iter_transactions = MagicMock(side_effect=lambda **_: _async_iter(txns))
+    # iter_account_transactions mirrors iter_transactions but takes a positional
+    # account_id. The fake just returns the same fixture - any per-account
+    # filtering would be Akahu's job; the tool no longer filters client-side.
+    client.iter_account_transactions = MagicMock(
+        side_effect=lambda _account_id, **_: _async_iter(txns)
+    )
     client.get_transaction = AsyncMock(return_value=txns[0])
     client.report_transaction_issue = AsyncMock(return_value=SupportRequest(success=True))
     monkeypatch.setattr(deps, "get_client", lambda: client)
@@ -83,15 +89,39 @@ async def test_get_transactions_filters_by_category(
     assert result["transactions"][0]["category"] == "Groceries"
 
 
-async def test_get_transactions_filters_by_account(
+async def test_get_transactions_with_account_id_routes_to_per_account_endpoint(
     fake_env: None, patched_client: MagicMock
 ) -> None:
+    """When account_id is given, the tool must use iter_account_transactions
+    (i.e. hit GET /accounts/{id}/transactions for server-side filtering) instead
+    of pulling all txns and filtering client-side."""
     from nz_akahu_mcp.tools.transactions import get_transactions
 
-    result = await get_transactions(account_id="acc_chq_001")
-    assert len(result["transactions"]) == 3
-    result_other = await get_transactions(account_id="acc_other_xxx")
-    assert len(result_other["transactions"]) == 0
+    result = await get_transactions(
+        account_id="acc_chq_001",
+        start_date="2026-05-01T00:00:00Z",
+        end_date="2026-05-31T23:59:59Z",
+    )
+    assert len(result["transactions"]) == 3  # the fixture returns 3 unfiltered
+    patched_client.iter_account_transactions.assert_called_once()
+    args, kwargs = patched_client.iter_account_transactions.call_args
+    assert args[0] == "acc_chq_001"
+    assert kwargs == {"start": "2026-05-01T00:00:00Z", "end": "2026-05-31T23:59:59Z"}
+    # And the unfiltered iterator must NOT have been used.
+    patched_client.iter_transactions.assert_not_called()
+
+
+async def test_get_transactions_without_account_id_uses_all_txn_endpoint(
+    fake_env: None, patched_client: MagicMock
+) -> None:
+    """When account_id is None, fall through to GET /transactions across all accounts."""
+    from nz_akahu_mcp.tools.transactions import get_transactions
+
+    await get_transactions(start_date="2026-05-01T00:00:00Z")
+    patched_client.iter_transactions.assert_called_once_with(
+        start="2026-05-01T00:00:00Z", end=None
+    )
+    patched_client.iter_account_transactions.assert_not_called()
 
 
 async def test_get_transactions_respects_limit(
@@ -305,7 +335,53 @@ async def test_report_transaction_issue_enrichment_suggestion_ok(
     assert result["success"] is True
 
 
-async def test_server_registers_four_tools(fake_env: None) -> None:
+# ---------- get_transactions_by_ids ----------
+
+
+async def test_get_transactions_by_ids(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.tools.transactions import get_transactions_by_ids
+
+    client = MagicMock()
+    client.get_transactions_by_ids = AsyncMock(return_value=_fake_txns())
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await get_transactions_by_ids(ids=["txn_001", "txn_002"])
+    assert len(result["transactions"]) == 3
+    client.get_transactions_by_ids.assert_awaited_once_with(["txn_001", "txn_002"])
+
+
+# ---------- get_pending_transactions ----------
+
+
+async def test_get_pending_transactions(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.tools.transactions import get_pending_transactions
+
+    client = MagicMock()
+    client.get_pending_transactions = AsyncMock(return_value=_fake_txns())
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await get_pending_transactions()
+    assert len(result["transactions"]) == 3
+
+
+async def test_get_pending_transactions_empty(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.tools.transactions import get_pending_transactions
+
+    client = MagicMock()
+    client.get_pending_transactions = AsyncMock(return_value=[])
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await get_pending_transactions()
+    assert result["transactions"] == []
+
+
+async def test_server_registers_six_tools(fake_env: None) -> None:
     from nz_akahu_mcp.tools.transactions import server
 
     tools = await server.list_tools()
@@ -315,4 +391,6 @@ async def test_server_registers_four_tools(fake_env: None) -> None:
         "get_transaction",
         "search_transactions",
         "report_transaction_issue",
+        "get_transactions_by_ids",
+        "get_pending_transactions",
     }
