@@ -1,0 +1,101 @@
+# Build, gate, and publish to PyPI when a GitHub Release is published.
+#
+# Trust model:
+#   - Tests run on every push and PR (cheap, catches regressions early).
+#   - The publish job ONLY runs when a Release is published in GitHub.
+#   - PyPI authenticates via Trusted Publishing (OIDC) -- no API tokens stored
+#     in repo secrets. See PUBLISHING.md for the one-time PyPI side setup.
+#   - The 'pypi' environment is the trust anchor on the PyPI side and the
+#     place to add manual-approval rules in GitHub if you want extra gating.
+
+name: release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests + ruff + mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: sync deps (incl. dev)
+        run: uv sync --extra dev
+
+      - name: ruff
+        run: uv run ruff check .
+
+      - name: mypy strict
+        run: uv run mypy src
+
+      - name: pytest with 100% coverage gate
+        run: uv run pytest
+
+  build:
+    name: build sdist + wheel
+    needs: test
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: assert pyproject version matches release tag
+        run: |
+          pyproject_version=$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$pyproject_version" != "$tag_version" ]; then
+            echo "Version mismatch: pyproject.toml=$pyproject_version but release tag=$tag_version"
+            exit 1
+          fi
+          echo "Version $pyproject_version matches tag $GITHUB_REF_NAME"
+
+      - name: build sdist + wheel
+        run: uv build
+
+      - name: upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment:
+      # Required for PyPI Trusted Publishing. Configure this environment in
+      # GitHub repo Settings -> Environments and optionally add a "Required
+      # reviewers" rule for manual approval before release.
+      name: pypi
+      url: https://pypi.org/p/nz-akahu-mcp
+    permissions:
+      # OIDC token for Trusted Publishing.
+      id-token: write
+    steps:
+      - name: download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No 'with: password:' -- Trusted Publishing handles auth via OIDC.

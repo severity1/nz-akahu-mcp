@@ -1,0 +1,60 @@
+{
+  "success": true,
+  "items": [
+    {
+      "_id": "acc_chq_001",
+      "_credentials": "creds_001",
+      "connection": {
+        "_id": "conn_anz",
+        "name": "ANZ",
+        "logo": "https://static.akahu.io/logos/anz.png"
+      },
+      "name": "Everyday account",
+      "status": "ACTIVE",
+      "formatted_account": "01-1234-1234567-00",
+      "meta": {
+        "holder": "Mr H Anderson"
+      },
+      "type": "CHECKING",
+      "attributes": ["TRANSACTION", "TRANSFER_TO", "TRANSFER_FROM", "PAYMENT_TO"],
+      "balance": {
+        "currency": "NZD",
+        "current": 2543.21,
+        "available": 2543.21,
+        "limit": 0,
+        "overdrawn": false
+      },
+      "refreshed": {
+        "balance": "2026-05-24T08:00:00.000Z",
+        "meta": "2026-05-24T08:00:00.000Z",
+        "transactions": "2026-05-24T08:00:00.000Z"
+      }
+    },
+    {
+      "_id": "acc_sav_002",
+      "_credentials": "creds_001",
+      "connection": {
+        "_id": "conn_anz",
+        "name": "ANZ",
+        "logo": "https://static.akahu.io/logos/anz.png"
+      },
+      "name": "Savings",
+      "status": "ACTIVE",
+      "formatted_account": "01-1234-7654321-00",
+      "type": "SAVINGS",
+      "attributes": ["TRANSACTION", "TRANSFER_FROM"],
+      "balance": {
+        "currency": "NZD",
+        "current": 18750.00,
+        "available": 18750.00,
+        "limit": 0,
+        "overdrawn": false
+      },
+      "refreshed": {
+        "balance": "2026-05-24T08:00:00.000Z",
+        "meta": "2026-05-24T08:00:00.000Z",
+        "transactions": "2026-05-24T08:00:00.000Z"
+      }
+    }
+  ]
+}

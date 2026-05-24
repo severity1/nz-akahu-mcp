@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "nz-akahu": {
+      "command": "uvx",
+      "args": ["nz-akahu-mcp"],
+      "env": {
+        "AKAHU_APP_TOKEN": "${AKAHU_APP_TOKEN}",
+        "AKAHU_USER_TOKEN": "${AKAHU_USER_TOKEN}",
+        "AKAHU_BASE_URL": "${AKAHU_BASE_URL:-https://api.akahu.io/v1}",
+        "AKAHU_READ_ONLY": "${AKAHU_READ_ONLY:-true}",
+        "AKAHU_AUTOMATION_BYPASS": "${AKAHU_AUTOMATION_BYPASS:-false}",
+        "AKAHU_REQUEST_TIMEOUT": "${AKAHU_REQUEST_TIMEOUT:-10}",
+        "AKAHU_LOG_LEVEL": "${AKAHU_LOG_LEVEL:-INFO}"
+      }
+    }
+  }
+}

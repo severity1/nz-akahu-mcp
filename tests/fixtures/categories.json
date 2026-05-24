@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "items": [
+    {
+      "_id": "cat_groceries",
+      "name": "Groceries",
+      "groups": {
+        "personal_finance": { "_id": "grp_food", "name": "Food" }
+      },
+      "components": ["groceries", "supermarket"]
+    },
+    {
+      "_id": "cat_utilities",
+      "name": "Utilities",
+      "groups": {
+        "personal_finance": { "_id": "grp_bills", "name": "Bills" }
+      },
+      "components": ["utilities"]
+    },
+    {
+      "_id": "cat_salary",
+      "name": "Salary",
+      "groups": {
+        "personal_finance": { "_id": "grp_income", "name": "Income" }
+      },
+      "components": ["salary"]
+    }
+  ]
+}

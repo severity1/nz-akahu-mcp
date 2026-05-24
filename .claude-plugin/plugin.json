@@ -1,0 +1,20 @@
+{
+  "name": "nz-akahu-mcp",
+  "version": "0.1.0",
+  "description": "Personal NZ banking assistant powered by Akahu open-finance data. Read-by-default, every write requires explicit confirmation.",
+  "author": {
+    "name": "severity1",
+    "url": "https://github.com/severity1"
+  },
+  "homepage": "https://github.com/severity1/nz-akahu-mcp",
+  "repository": "https://github.com/severity1/nz-akahu-mcp",
+  "license": "Apache-2.0",
+  "keywords": [
+    "mcp",
+    "akahu",
+    "open-finance",
+    "new-zealand",
+    "banking",
+    "personal-finance"
+  ]
+}

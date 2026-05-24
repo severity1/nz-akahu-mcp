@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "items": [
+    {
+      "_id": "conn_anz",
+      "name": "ANZ",
+      "logo": "https://static.akahu.io/logos/anz.png"
+    },
+    {
+      "_id": "conn_asb",
+      "name": "ASB",
+      "logo": "https://static.akahu.io/logos/asb.png"
+    }
+  ]
+}

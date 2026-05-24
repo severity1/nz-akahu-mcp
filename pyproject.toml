@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nz-akahu-mcp"
+version = "0.1.0"
+description = "Unofficial MCP server for the Akahu open-finance API (New Zealand). Personal Apps, read-by-default, write-with-consent."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+authors = [{ name = "nz-akahu-mcp contributors" }]
+keywords = ["mcp", "akahu", "open-finance", "new-zealand", "banking"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial",
+]
+dependencies = [
+    "fastmcp>=3.2.4",
+    "httpx>=0.28",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "respx>=0.21",
+    "mypy>=1.11",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+nz-akahu-mcp = "nz_akahu_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/severity1/nz-akahu-mcp"
+Repository = "https://github.com/severity1/nz-akahu-mcp"
+Issues = "https://github.com/severity1/nz-akahu-mcp/issues"
+Changelog = "https://github.com/severity1/nz-akahu-mcp/releases"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nz_akahu_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=src/nz_akahu_mcp --cov-branch --cov-fail-under=100 --cov-report=term-missing -q"
+
+[tool.coverage.run]
+source = ["src/nz_akahu_mcp"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@overload",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["respx.*"]
+ignore_missing_imports = true

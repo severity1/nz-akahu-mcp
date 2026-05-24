@@ -1,0 +1,17 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "RET", # flake8-return
+    "N",   # pep8-naming
+]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["B011"]

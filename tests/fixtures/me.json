@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "item": {
+    "_id": "user_test_001",
+    "access_granted_at": "2026-01-15T10:30:00.000Z",
+    "email": "test.user@example.nz",
+    "preferences": {
+      "online_banking": false
+    },
+    "profile": {
+      "first_name": "Hemi",
+      "last_name": "Anderson",
+      "phone": {
+        "verified": true,
+        "number": "+64210000000"
+      },
+      "address": {
+        "street": "12 Queen Street",
+        "city": "Auckland",
+        "postcode": "1010",
+        "country": "NZ"
+      }
+    }
+  }
+}

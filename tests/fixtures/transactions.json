@@ -1,0 +1,104 @@
+{
+  "success": true,
+  "cursor": { "next": null },
+  "items": [
+    {
+      "_id": "txn_001",
+      "_account": "acc_chq_001",
+      "_user": "user_test_001",
+      "_connection": "conn_anz",
+      "date": "2026-05-20T00:00:00.000Z",
+      "description": "COUNTDOWN PONSONBY",
+      "amount": -82.45,
+      "balance": 2543.21,
+      "type": "EFTPOS",
+      "hash": "h001",
+      "updated_at": "2026-05-21T08:00:00.000Z",
+      "created_at": "2026-05-21T08:00:00.000Z",
+      "merchant": {
+        "_id": "merch_countdown",
+        "name": "Countdown",
+        "website": "https://countdown.co.nz"
+      },
+      "category": {
+        "_id": "cat_groceries",
+        "name": "Groceries",
+        "groups": {
+          "personal_finance": {
+            "_id": "grp_food",
+            "name": "Food"
+          }
+        }
+      },
+      "meta": {
+        "particulars": "COUNTDOWN",
+        "code": "PONSONBY",
+        "reference": "",
+        "card_suffix": "1234",
+        "logo": "https://static.akahu.io/logos/countdown.png"
+      }
+    },
+    {
+      "_id": "txn_002",
+      "_account": "acc_chq_001",
+      "_user": "user_test_001",
+      "_connection": "conn_anz",
+      "date": "2026-05-15T00:00:00.000Z",
+      "description": "SPARK NZ - INTERNET",
+      "amount": -89.99,
+      "balance": 2625.66,
+      "type": "DIRECT DEBIT",
+      "hash": "h002",
+      "updated_at": "2026-05-16T08:00:00.000Z",
+      "created_at": "2026-05-16T08:00:00.000Z",
+      "merchant": {
+        "_id": "merch_spark",
+        "name": "Spark NZ"
+      },
+      "category": {
+        "_id": "cat_utilities",
+        "name": "Utilities",
+        "groups": {
+          "personal_finance": {
+            "_id": "grp_bills",
+            "name": "Bills"
+          }
+        }
+      },
+      "meta": {
+        "particulars": "SPARK NZ",
+        "code": "INTERNET",
+        "reference": "ACC123456"
+      }
+    },
+    {
+      "_id": "txn_003",
+      "_account": "acc_chq_001",
+      "_user": "user_test_001",
+      "_connection": "conn_anz",
+      "date": "2026-05-15T00:00:00.000Z",
+      "description": "SALARY - ACME LTD",
+      "amount": 3200.00,
+      "balance": 2715.65,
+      "type": "CREDIT",
+      "hash": "h003",
+      "updated_at": "2026-05-16T08:00:00.000Z",
+      "created_at": "2026-05-16T08:00:00.000Z",
+      "category": {
+        "_id": "cat_salary",
+        "name": "Salary",
+        "groups": {
+          "personal_finance": {
+            "_id": "grp_income",
+            "name": "Income"
+          }
+        }
+      },
+      "meta": {
+        "particulars": "ACME LTD",
+        "code": "SALARY",
+        "reference": "MAY"
+      }
+    }
+  ]
+}
