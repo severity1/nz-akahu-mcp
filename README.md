@@ -4,10 +4,10 @@ Unofficial MCP server for the [Akahu](https://akahu.nz) open-finance API
 (New Zealand). Bring your own Akahu credentials; run locally over stdio; no
 hosted backend.
 
-- **23 tools** covering every user-scoped Akahu endpoint: account & balance reads, settled & pending transaction reads, batch lookup by id, spending insights, recurring detection, cash-flow forecasting, identity read, refresh writes, support-ticket writes, name verification.
-- **Read-only by default.** All write tools refuse until you flip a flag.
-- **Per-call consent for every write.** Even with writes enabled, Claude asks you to confirm each one.
-- **Personal Apps only.** Payments and webhooks are full-app features and are out of scope for v1.
+- **14 tools.** Account & balance reads, settled & pending transaction reads, batch lookup by id, identity read, refresh writes, support-ticket writes, name verification.
+- **Read-only by default.** Every write tool refuses until `AKAHU_READ_ONLY=false`.
+- **Per-call consent for every write.** Each write calls `ctx.elicit()` for confirmation in the client.
+- **Personal Apps only.** App-scoped endpoints, payments, and webhooks are not exposed.
 
 ## Prerequisites
 
@@ -29,23 +29,7 @@ export AKAHU_AUTOMATION_BYPASS=false
 
 Pick whichever fits your situation.
 
-### Option A: from the Severity1 marketplace (one command, recommended)
-
-```bash
-# In a Claude Code session:
-/plugin marketplace add severity1/severity1-marketplace
-/plugin install nz-akahu-mcp@severity1
-```
-
-This installs the plugin, which contributes both:
-- The `nz-akahu` MCP server (all 23 tools)
-- The bundled `nz-akahu` skill (NZ banking context, advice boundaries, write-mode safety guidance)
-
-To enable the plugin in the current project, run `/plugin` and toggle it on.
-
-> **For the marketplace owner:** add the entry from `examples/marketplace-entry.json` to `.claude-plugin/marketplace.json` in `severity1/severity1-marketplace` so the install command above resolves.
-
-### Option B: remote install via `claude mcp add` (without the marketplace)
+### Option A: remote install via `claude mcp add` (recommended)
 
 Once published to PyPI:
 
@@ -73,7 +57,7 @@ Scope options:
 - `--scope project` - shared via `.mcp.json` checked into the repo (don't use this for tokens)
 - `--scope local` - this project only, not shared (default)
 
-### Option C: local install via `claude mcp add` (clone + dev loop)
+### Option B: local install via `claude mcp add` (clone + dev loop)
 
 If you want to hack on the server:
 
@@ -81,7 +65,7 @@ If you want to hack on the server:
 git clone https://github.com/severity1/nz-akahu-mcp.git
 cd nz-akahu-mcp
 uv sync --extra dev
-uv run pytest         # 166 tests, 100% line + branch coverage
+uv run pytest         # 151 tests, 100% line + branch coverage
 
 # Wire the local checkout into Claude Code:
 claude mcp add nz-akahu \
@@ -91,11 +75,11 @@ claude mcp add nz-akahu \
   -- uv --directory "$(pwd)" run nz-akahu-mcp
 ```
 
-After editing source, restart your Claude Code session - the next tool call picks up the new code.
+Restart your Claude Code session after editing source.
 
-### Option D: pip install from PyPI
+### Option C: pip install from PyPI
 
-For users on machines without `uv`, or in environments where only `pip` is approved. Install into a virtualenv so you don't pollute system Python:
+Install into a virtualenv:
 
 ```bash
 python -m venv ~/.venvs/nz-akahu-mcp
@@ -103,7 +87,7 @@ source ~/.venvs/nz-akahu-mcp/bin/activate   # Windows: ~/.venvs/nz-akahu-mcp/Scr
 pip install nz-akahu-mcp
 ```
 
-Then point Claude Code at the installed console script (note the absolute path so it works from any working directory):
+Then point Claude Code at the installed console script (use the absolute path):
 
 ```bash
 claude mcp add nz-akahu \
@@ -136,8 +120,6 @@ Then restart Claude Desktop.
 
 ## Run standalone (no client)
 
-Useful for debugging:
-
 ```bash
 # Via uvx (zero-install):
 uvx nz-akahu-mcp
@@ -149,7 +131,7 @@ nz-akahu-mcp
 uv run nz-akahu-mcp
 ```
 
-The server speaks MCP over stdio. The FastMCP inspector is handy:
+The server speaks MCP over stdio. Inspect tool calls with:
 
 ```bash
 uv run fastmcp dev src/nz_akahu_mcp/server.py
@@ -158,22 +140,22 @@ uv run fastmcp dev src/nz_akahu_mcp/server.py
 ## Architecture
 
 ```
-+--- root FastMCP server (server.py) -------------------------+
-| mounts 5 sub-servers, prints safety banner on startup       |
-+----+---------+---------+---------+---------+----------------+
-     |         |         |         |         |
-   accounts  transactions insights planning  identity
-     |         |         |         |         |
-     +--------- AkahuClient (httpx + retry) -+
++--- root FastMCP server (server.py) -----------+
+| mounts 3 sub-servers, prints safety banner    |
++----+---------------+--------------+-----------+
+     |               |              |
+   accounts      transactions    identity
+     |               |              |
+     +----- AkahuClient (httpx + retry) ----+
                           |
                           v
                   https://api.akahu.io/v1
                   (dual-header auth)
 ```
 
-Safety lives in `safety.py` as the `@require_write_consent` decorator on every
-write tool. `rg "@require_write_consent"` enumerates writes.
-`rg "automatable=True"` enumerates the bypass-eligible subset.
+Every write tool is decorated with `@require_write_consent` from `safety.py`.
+`rg "@require_write_consent"` enumerates writes; `rg "automatable=True"`
+enumerates the bypass-eligible subset.
 
 ## Read-only by default
 
@@ -188,31 +170,27 @@ this message:
 When writes ARE enabled, every write still calls `ctx.elicit()` to ask you in
 Claude's UI before firing.
 
-### Automation bypass (advanced)
+### Automation bypass
 
-If you're running unattended automation (e.g. a nightly cron that refreshes
-balances), per-call elicitation gets in the way. Setting
-`AKAHU_AUTOMATION_BYPASS=true` *together with* `AKAHU_READ_ONLY=false` skips the
-elicit prompt for the **automatable subset only**:
+Setting `AKAHU_AUTOMATION_BYPASS=true` *together with* `AKAHU_READ_ONLY=false`
+skips the elicit prompt for tools marked `automatable=True`:
 
-| Tool                                | Bypass-eligible? | Why                                                                          |
-| ----------------------------------- | ----------------- | ---------------------------------------------------------------------------- |
-| `accounts/refresh_all_accounts`     | YES               | Idempotent, rate-limited, real automation use case                           |
-| `accounts/refresh_account`          | YES               | Same                                                                         |
-| `transactions/report_transaction_issue` | NO            | Sends ticket to a human at Akahu support; never auto                         |
+| Tool                                    | Bypass-eligible? |
+| --------------------------------------- | ---------------- |
+| `accounts/refresh_all_accounts`         | YES              |
+| `accounts/refresh_account`              | YES              |
+| `transactions/report_transaction_issue` | NO               |
+| `identity/verify_name`                  | NO               |
 
-**Recommendation:** leave this OFF for ad-hoc Claude conversations. Only set it
-on if you're scripting refresh cycles. Each bypassed call logs at INFO with the
-tool name; the server prints a banner on startup listing the bypass-eligible
-tools so the current posture is always visible.
+Each bypassed call logs at INFO with the tool name. The server prints a startup
+banner listing the bypass-eligible tools.
 
-If you set `AKAHU_AUTOMATION_BYPASS=true` together with `AKAHU_READ_ONLY=true`,
-the server refuses to start - the combination is incoherent (writes are off, so
-there's nothing to bypass).
+Setting `AKAHU_AUTOMATION_BYPASS=true` with `AKAHU_READ_ONLY=true` is rejected
+at startup.
 
 ## Tool reference
 
-### Read tools (19)
+### Read tools (10)
 
 **`accounts/`**
 - `list_accounts` - all connected accounts (masked, formatted balances)
@@ -226,19 +204,6 @@ there's nothing to bypass).
 - `get_transactions_by_ids(ids)` - batch fetch by Akahu txn id (useful for webhook follow-up)
 - `get_pending_transactions` - not-yet-settled across all accounts
 - `search_transactions(query, limit=50)` - substring across description + merchant.name
-
-**`insights/`**
-- `analyse_spending(start_date, end_date, group_by="category"|"merchant"|"account")`
-- `find_recurring_payments(lookback_days=90)` - two-tier HIGH/MEDIUM confidence
-- `cash_flow_summary(start_date, end_date)` - inflows, outflows, net, HIGH-only fixed
-- `compare_periods(period_a_start, period_a_end, period_b_start, period_b_end)`
-- `top_merchants(start_date, end_date, limit=10)`
-- `detect_unusual_transactions(lookback_days=30, threshold_multiplier=3.0)` - per-category median + MAD
-
-**`planning/`**
-- `project_balance(account_id, days_ahead=30)` - linear extrapolation
-- `upcoming_recurring(days_ahead=30)` - forecasts both HIGH and MEDIUM
-- `savings_capacity(lookback_days=90)` - monthly inflows minus HIGH fixed outflows
 
 **`identity/`**
 - `get_me`
@@ -259,47 +224,36 @@ there's nothing to bypass).
 
 ## Personal Apps only
 
-This server uses the Akahu Personal App model (per-user OAuth). Per the
-[Akahu authentication docs](https://developers.akahu.nz/reference/api-akahu-io-authentication#app-scoped-endpoints):
+This server uses the Akahu Personal App model (per-user OAuth). The following
+endpoints are not exposed because they are
+[app-scoped](https://developers.akahu.nz/reference/api-akahu-io-authentication#app-scoped-endpoints)
+and unreachable from a Personal App:
 
-> App-scoped endpoints are not available to Personal Apps.
-
-That puts the following Akahu endpoints permanently out of scope for v1 and
-they are not exposed as tools (they would always 4xx):
-
-- `/categories` - NZFCC category taxonomy (transactions carry their category inline so this rarely matters)
+- `/categories` - NZFCC category taxonomy (transactions carry their category inline)
 - `/connections` - supported-bank list
-- `/identity/{id}/verify-name` - name-against-account verification (the user-scoped `/verify/name` is exposed instead via `identity/verify_name`)
+- `/identity/{id}/verify-name` - app-scoped variant; use `identity/verify_name` instead
 
-Full-app features are also out of scope for v1:
+Full-app features are also out of scope:
 
 - Payments (`make_payment`, `cancel_payment`, etc.)
 - Webhooks (`subscribe_webhook`, etc.)
 
-These are tracked for a hypothetical v2.
-
 ### Scope-grant gotchas
 
-Two endpoints in the user-scoped surface require a Personal-App scope you can
-toggle at https://my.akahu.nz/developers. Without the grant, Akahu returns 403:
+These user-scoped endpoints require a Personal-App scope toggled at
+https://my.akahu.nz/developers; without the grant they return 403:
 
-- `GET /parties` - counterparty list (we DON'T ship a tool for this since it's
-  consistently 403 on Personal Apps; flag if you want it added)
-- `POST /verify/name` and `POST /verify/name/{id}` - we ship these as
-  `identity/verify_name`. If you see "Forbidden" responses, enable the relevant
-  identity scope on your Personal App and try again.
+- `GET /parties` - counterparty list (not shipped as a tool)
+- `POST /verify/name` and `POST /verify/name/{id}` - shipped as `identity/verify_name`
 
 ## Releasing
 
-PyPI publishes are automated via GitHub Actions using Trusted Publishing
-(OIDC) - no API tokens in repo secrets. To cut a release: bump
-`version` in `pyproject.toml`, push a `vX.Y.Z` tag, then publish a
-GitHub Release with that tag. The workflow runs the full test+ruff+mypy
-gate, asserts the pyproject version matches the tag, and publishes to
-PyPI.
+To cut a release: bump `version` in `pyproject.toml`, push a `vX.Y.Z` tag, then
+publish a GitHub Release with that tag. The workflow runs the test+ruff+mypy
+gate, asserts the pyproject version matches the tag, and publishes to PyPI via
+Trusted Publishing (OIDC).
 
-See [`PUBLISHING.md`](PUBLISHING.md) for the one-time PyPI side setup
-(pending publisher, `pypi` environment, optional approval rules) and the
+See [`PUBLISHING.md`](PUBLISHING.md) for the one-time PyPI setup and the
 manual-publish fallback.
 
 ## Disclaimer

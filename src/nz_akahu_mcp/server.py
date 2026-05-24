@@ -1,4 +1,4 @@
-"""Root FastMCP server: mounts sub-servers, logs startup banner, runs over stdio."""
+"""Root FastMCP server. Mounts sub-servers and runs over stdio."""
 
 from __future__ import annotations
 
@@ -9,18 +9,16 @@ from fastmcp import FastMCP
 
 from nz_akahu_mcp.config import AkahuConfig
 from nz_akahu_mcp.safety import bypass_eligible_tools
-from nz_akahu_mcp.tools import accounts, identity, insights, planning, transactions
+from nz_akahu_mcp.tools import accounts, identity, transactions
 
 logger = logging.getLogger(__name__)
 
 
 def build_server() -> FastMCP[Any]:
-    """Construct the root FastMCP server with all 5 sub-servers mounted."""
+    """Construct the root FastMCP server with all sub-servers mounted."""
     mcp: FastMCP[Any] = FastMCP("nz-akahu-mcp")
     mcp.mount(accounts.server, namespace="accounts")
     mcp.mount(transactions.server, namespace="transactions")
-    mcp.mount(insights.server, namespace="insights")
-    mcp.mount(planning.server, namespace="planning")
     mcp.mount(identity.server, namespace="identity")
     return mcp
 

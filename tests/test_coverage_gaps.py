@@ -6,7 +6,6 @@ import httpx
 import pytest
 import respx
 
-from nz_akahu_mcp.models import Transaction
 from tests.conftest import load_fixture
 
 # ---------- client: __aenter__ / __aexit__ ----------
@@ -144,82 +143,6 @@ async def test_report_issue_with_other_id(
     assert b'"other_id"' in body
     assert b"txn_b" in body
     assert b'"other_transaction_id"' not in body
-
-
-# ---------- insights: _group_key without merchant ----------
-
-
-async def test_recurring_uses_normalised_description_when_no_merchant(
-    fake_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """3 identical no-merchant debits should group on normalised description."""
-    from unittest.mock import MagicMock
-
-    from nz_akahu_mcp import deps
-    from nz_akahu_mcp.tools.insights import find_recurring_payments
-
-    base = {
-        "_account": "acc",
-        "description": "AP - LANDLORD RENT",
-        "amount": -500.00,
-        "type": "AUTOMATIC PAYMENT",
-    }
-    items = [
-        Transaction.model_validate({**base, "_id": "r1", "date": "2026-03-01T00:00:00Z"}),
-        Transaction.model_validate({**base, "_id": "r2", "date": "2026-04-01T00:00:00Z"}),
-        Transaction.model_validate({**base, "_id": "r3", "date": "2026-05-01T00:00:00Z"}),
-    ]
-
-    async def gen():
-        for t in items:
-            yield t
-
-    client = MagicMock()
-    client.iter_transactions = MagicMock(side_effect=lambda **_: gen())
-    monkeypatch.setattr(deps, "get_client", lambda: client)
-    result = await find_recurring_payments(lookback_days=200)
-    keys = {g["key"] for g in result["recurring"]}
-    assert "AP - LANDLORD RENT" in keys
-
-
-# ---------- insights: classifier returns None when too noisy ----------
-
-
-async def test_recurring_returns_none_when_too_noisy(
-    fake_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """3+ occurrences but amount variance > 30% -> classifier returns None."""
-    from unittest.mock import MagicMock
-
-    from nz_akahu_mcp import deps
-    from nz_akahu_mcp.tools.insights import find_recurring_payments
-
-    base = {
-        "_account": "acc",
-        "description": "RANDOM SHOP",
-        "type": "EFTPOS",
-        "merchant": {"_id": "m_random", "name": "RandomShop"},
-    }
-    # amounts vary 50%+
-    def _txn(tid: str, amount: float, date: str) -> Transaction:
-        return Transaction.model_validate({**base, "_id": tid, "amount": amount, "date": date})
-
-    items = [
-        _txn("n1", -10.00, "2026-03-01T00:00:00Z"),
-        _txn("n2", -100.00, "2026-04-01T00:00:00Z"),
-        _txn("n3", -200.00, "2026-05-01T00:00:00Z"),
-    ]
-
-    async def gen():
-        for t in items:
-            yield t
-
-    client = MagicMock()
-    client.iter_transactions = MagicMock(side_effect=lambda **_: gen())
-    monkeypatch.setattr(deps, "get_client", lambda: client)
-    result = await find_recurring_payments(lookback_days=200)
-    keys = {g["key"] for g in result["recurring"]}
-    assert "RandomShop" not in keys
 
 
 # ---------- deps: real construction + close ----------

@@ -1,4 +1,4 @@
-"""Tests for the accounts sub-server: 3 read tools + 2 write tools."""
+"""Tests for the accounts sub-server."""
 
 from __future__ import annotations
 
@@ -74,6 +74,23 @@ async def test_list_accounts_handles_missing_balance(
     result = await list_accounts()
     assert result["accounts"][0]["balance"] is None
     assert result["accounts"][0]["currency"] is None
+
+
+async def test_list_accounts_renders_non_nzd_with_iso_prefix(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A USD-denominated account (e.g. Wise) should render 'USD 2,543.21'."""
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.tools.accounts import list_accounts
+
+    item = load_fixture("accounts")["items"][0]
+    item = {**item, "balance": {**item["balance"], "currency": "USD"}}
+    client = MagicMock()
+    client.list_accounts = AsyncMock(return_value=[Account.model_validate(item)])
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await list_accounts()
+    assert result["accounts"][0]["balance"] == "USD 2,543.21"
+    assert result["accounts"][0]["currency"] == "USD"
 
 
 # ---------- get_account ----------
@@ -258,7 +275,9 @@ async def test_account_pending_transactions(
             "type": "EFTPOS",
         }
     )
+    item = load_fixture("accounts")["items"][0]
     client = MagicMock()
+    client.get_account = AsyncMock(return_value=Account.model_validate(item))
     client.get_account_pending_transactions = AsyncMock(return_value=[txn])
     monkeypatch.setattr(deps, "get_client", lambda: client)
     result = await get_pending_transactions(account_id="acc_chq_001")
@@ -267,13 +286,75 @@ async def test_account_pending_transactions(
     assert result["transactions"][0]["amount"] == "-$5.50"
 
 
+async def test_account_pending_transactions_uses_account_currency(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pending txn amounts honour the parent account's currency (e.g. Wise USD)."""
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.models import Transaction
+    from nz_akahu_mcp.tools.accounts import get_pending_transactions
+
+    txn = Transaction.model_validate(
+        {
+            "_id": "ptxn_usd",
+            "_account": "acc_wise_usd",
+            "date": "2026-05-22T00:00:00Z",
+            "description": "PENDING - SUBSCRIPTION",
+            "amount": -9.99,
+            "type": "PAYMENT",
+        }
+    )
+    item = {**load_fixture("accounts")["items"][0], "balance": {
+        "currency": "USD",
+        "current": 100.00,
+        "available": 100.00,
+        "limit": 0,
+        "overdrawn": False,
+    }}
+    client = MagicMock()
+    client.get_account = AsyncMock(return_value=Account.model_validate(item))
+    client.get_account_pending_transactions = AsyncMock(return_value=[txn])
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await get_pending_transactions(account_id="acc_wise_usd")
+    assert result["transactions"][0]["amount"] == "-USD 9.99"
+
+
+async def test_account_pending_transactions_no_balance_defaults_to_nzd(
+    fake_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the parent account has no balance block, fall back to NZD formatting."""
+    from nz_akahu_mcp import deps
+    from nz_akahu_mcp.models import Transaction
+    from nz_akahu_mcp.tools.accounts import get_pending_transactions
+
+    txn = Transaction.model_validate(
+        {
+            "_id": "ptxn_nobal",
+            "_account": "acc_x",
+            "date": "2026-05-22T00:00:00Z",
+            "description": "PENDING",
+            "amount": -1.00,
+            "type": "EFTPOS",
+        }
+    )
+    item = {**load_fixture("accounts")["items"][0], "balance": None}
+    client = MagicMock()
+    client.get_account = AsyncMock(return_value=Account.model_validate(item))
+    client.get_account_pending_transactions = AsyncMock(return_value=[txn])
+    monkeypatch.setattr(deps, "get_client", lambda: client)
+    result = await get_pending_transactions(account_id="acc_x")
+    assert result["transactions"][0]["amount"] == "-$1.00"
+
+
 async def test_account_pending_transactions_empty(
     fake_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from nz_akahu_mcp import deps
     from nz_akahu_mcp.tools.accounts import get_pending_transactions
 
+    item = load_fixture("accounts")["items"][0]
     client = MagicMock()
+    client.get_account = AsyncMock(return_value=Account.model_validate(item))
     client.get_account_pending_transactions = AsyncMock(return_value=[])
     monkeypatch.setattr(deps, "get_client", lambda: client)
     result = await get_pending_transactions(account_id="acc_chq_001")

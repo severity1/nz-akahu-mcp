@@ -6,10 +6,10 @@ Auth model: two headers on every call.
 
 Retries: 3 attempts on 5xx and httpx.TransportError, exponential backoff (1s/2s/4s).
 429 honours Retry-After if numeric, otherwise falls back to the default schedule.
-Other 4xx surfaces immediately (deterministic errors don't benefit from retry).
+Other 4xx surfaces immediately.
 
-Logging: INFO logs "GET /path -> 200" lines; DEBUG logs response bodies.
-Auth tokens are never logged - we only log the response, never the request headers.
+Logging: INFO logs "GET /path -> 200" lines; DEBUG logs response bodies. Auth
+tokens are never logged.
 """
 
 from __future__ import annotations
@@ -113,10 +113,8 @@ class AkahuClient:
                 await asyncio.sleep(_BASE_BACKOFF * (2**attempt))
                 continue
 
-            # Either a non-retryable 4xx, or 5xx after exhausting attempts.
             response.raise_for_status()
 
-        # All attempts failed with TransportError.
         assert last_exc is not None  # noqa: S101
         raise last_exc
 
@@ -253,11 +251,6 @@ class AkahuClient:
         data = await self._request("POST", "/transactions/ids", json=ids)
         return [Transaction.model_validate(item) for item in data["items"]]
 
-    # Note: /categories, /connections, /parties, /identity/{id}/verify-name are
-    # app-scoped on Akahu and therefore unreachable from a Personal App. Not
-    # implemented here. /parties returns 403 on Personal Apps despite the doc
-    # marking it user-scoped; treat that as effectively app-scoped for our purposes.
-
     # ---------- write endpoints ----------
 
     async def refresh_all(self) -> RefreshResult:
@@ -280,10 +273,8 @@ class AkahuClient:
         """Submit a support ticket about a transaction.
 
         Wire shape per https://developers.akahu.nz/reference/post_support-transaction-id:
-          path:  /support/{transaction_id}   (NOT /support/transaction/{id})
+          path:  /support/{transaction_id}
           body:  {"type": ..., "other_id": ..., "fields": [...], "comment": "..."}
-                 The field name is `type` (not `issue_type`) and `other_id`
-                 (not `other_transaction_id`).
         """
         body: dict[str, Any] = {"type": issue_type}
         if fields:
@@ -312,10 +303,7 @@ class AkahuClient:
           body:  required `family_name`; optional `given_name`, `middle_name`,
                  `initials`.
 
-        Note: POST /identity/{id}/verify-name (similar-looking endpoint) is
-        app-scoped and unreachable from a Personal App; we don't use it.
-        /verify/name is documented user-scoped but requires the relevant scope
-        grant on the Personal App. Without that grant Akahu returns 403.
+        Requires the relevant Personal-App scope grant; returns 403 without it.
         """
         body: dict[str, Any] = {"family_name": family_name}
         if given_name:

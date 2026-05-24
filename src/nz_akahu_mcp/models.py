@@ -1,8 +1,7 @@
 """Pydantic shapes for Akahu API responses.
 
 Field aliases handle Akahu's underscore-prefixed ids (`_id`, `_account`, etc.).
-All models are `extra="ignore"` so unknown fields in future API versions
-don't break parsing.
+All models use `extra="ignore"`.
 """
 
 from __future__ import annotations
@@ -143,12 +142,6 @@ class Me(_Base):
     preferences: Preferences | None = None
 
 
-# Party / Category / Connection list endpoints are app-scoped on Akahu and
-# therefore unreachable from a Personal App. Party has no nested role in any
-# other model, so the standalone class is omitted here. Category and Connection
-# remain because Akahu inlines them under Transaction.category / Account.connection.
-
-
 # ---------- write results ----------
 
 
@@ -165,9 +158,7 @@ class SupportRequest(_Base):
 class VerifyNameResult(_Base):
     """Result envelope for POST /verify/name and POST /verify/name/{id}.
 
-    Akahu returns `success: true` plus an `item` dict whose shape is
-    documented at https://developers.akahu.nz/docs/enduring-verify-name.
-    We keep `item` permissive so future fields don't break parsing.
+    `item` shape documented at https://developers.akahu.nz/docs/enduring-verify-name.
     """
 
     success: bool

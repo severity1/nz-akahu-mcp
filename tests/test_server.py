@@ -7,7 +7,7 @@ import logging
 import pytest
 
 
-async def test_root_server_exposes_all_23_tools(fake_env: None) -> None:
+async def test_root_server_exposes_all_14_tools(fake_env: None) -> None:
     from nz_akahu_mcp.server import build_server
 
     mcp = build_server()
@@ -28,17 +28,6 @@ async def test_root_server_exposes_all_23_tools(fake_env: None) -> None:
         "transactions_get_pending_transactions",
         "transactions_search_transactions",
         "transactions_report_transaction_issue",
-        # insights (6)
-        "insights_analyse_spending",
-        "insights_find_recurring_payments",
-        "insights_cash_flow_summary",
-        "insights_compare_periods",
-        "insights_top_merchants",
-        "insights_detect_unusual_transactions",
-        # planning (3)
-        "planning_project_balance",
-        "planning_upcoming_recurring",
-        "planning_savings_capacity",
         # identity (2) -- /categories, /parties, /identity/{id}/verify-name are app-scoped
         "identity_get_me",
         "identity_verify_name",

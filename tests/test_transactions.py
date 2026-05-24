@@ -1,4 +1,4 @@
-"""Tests for the transactions sub-server: 3 read + 1 write (always elicits)."""
+"""Tests for the transactions sub-server."""
 
 from __future__ import annotations
 

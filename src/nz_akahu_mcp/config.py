@@ -37,14 +37,12 @@ class AkahuConfig(BaseSettings):
 
     @model_validator(mode="after")
     def _reject_incoherent_bypass(self) -> Self:
-        """A bypass flag with read-only on is incoherent; fail loudly."""
+        """Reject AKAHU_READ_ONLY=true combined with AKAHU_AUTOMATION_BYPASS=true."""
         if self.automation_bypass and self.read_only:
             raise ValueError(
-                "automation_bypass=true requires read_only=false. The combination "
-                "AKAHU_READ_ONLY=true with AKAHU_AUTOMATION_BYPASS=true is incoherent: "
-                "writes are disabled, so there is nothing to bypass. Either set "
-                "AKAHU_READ_ONLY=false to enable writes, or AKAHU_AUTOMATION_BYPASS=false "
-                "to silence this error."
+                "automation_bypass=true requires read_only=false. Either set "
+                "AKAHU_READ_ONLY=false to enable writes, or "
+                "AKAHU_AUTOMATION_BYPASS=false to silence this error."
             )
         return self
 

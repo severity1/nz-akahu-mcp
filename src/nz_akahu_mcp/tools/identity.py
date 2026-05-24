@@ -1,11 +1,8 @@
-"""Identity sub-server: 1 read tool + 1 write tool (always elicits).
+"""Identity sub-server: 1 read tool + 1 write tool.
 
-Personal-App scope only. /categories, /parties, /connections, /identity/{id}
-and POST /identity/{id}/verify-name are all app-scoped on Akahu
-(see https://developers.akahu.nz/reference/api-akahu-io-authentication#app-scoped-endpoints)
-and therefore unreachable -- not exposed as tools.
-
-The user-scoped POST /verify/name endpoint IS exposed via `verify_name` below.
+Exposes only the user-scoped Akahu identity endpoints. App-scoped endpoints
+(`/categories`, `/parties`, `/connections`, `/identity/{id}/verify-name`) are
+not reachable from a Personal App and are not shipped.
 """
 
 from __future__ import annotations
@@ -22,7 +19,12 @@ server: FastMCP[Any] = FastMCP("identity")
 
 @server.tool
 async def get_me() -> dict[str, Any]:
-    """Return identity/profile data for the connected Akahu user."""
+    """Return identity/profile data for the connected Akahu user.
+
+    Returns:
+        {"id": str, "email": str | None, "name": str | None}
+        where name concatenates profile first_name and last_name when present.
+    """
     me = await deps.get_client().get_me()
     name: str | None = None
     if me.profile and (me.profile.first_name or me.profile.last_name):
@@ -34,8 +36,6 @@ async def get_me() -> dict[str, Any]:
     }
 
 
-# Not automatable: identity verification may incur a per-call charge from the
-# bank and is identity-sensitive. Human-in-the-loop is the safer default.
 @server.tool
 @require_write_consent(
     "Verify the name '{given_name} {family_name}' "
@@ -52,16 +52,26 @@ async def verify_name(
     initials: list[str] | None = None,
     account_id: str | None = None,
 ) -> dict[str, Any]:
-    """Ask Akahu to verify a name against the account holder.
+    """Verify a name against the account holder via Akahu's identity check.
 
-    family_name is required; given_name / middle_name / initials are optional.
-    If account_id is provided, verification is scoped to that one account
+    If account_id is provided, the check is scoped to that one account
     (POST /verify/name/{account_id}); otherwise Akahu matches against every
-    identity source across all the user's connected accounts (POST /verify/name).
+    identity source the user has connected (POST /verify/name).
 
-    Returns Akahu's match result. Note: this endpoint is documented user-scoped
-    but requires the appropriate Personal-App scope grant in your Akahu portal.
-    Without that grant Akahu returns 403 Forbidden.
+    Requires the appropriate Personal-App scope grant in your Akahu portal;
+    without it Akahu returns 403 Forbidden. May incur a per-call charge from
+    your bank. Always elicits user confirmation (not bypass-eligible).
+
+    Returns {"success": bool, "item": dict | None, "message": str | None}
+    where item is Akahu's match-result envelope (shape documented at
+    https://developers.akahu.nz/docs/enduring-verify-name).
+
+    Args:
+        family_name: Required. Surname to verify.
+        given_name: Optional first name.
+        middle_name: Optional middle name.
+        initials: Optional list of initial strings (e.g. ["J", "R"]).
+        account_id: Optional account scope; omit to check all sources.
     """
     result = await deps.get_client().verify_name(
         family_name=family_name,

@@ -1,4 +1,4 @@
-"""Transactions sub-server: 3 read tools + 1 write tool (always elicits)."""
+"""Transactions sub-server: 5 read tools + 1 write tool."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any, Literal
 from fastmcp import Context, FastMCP
 
 from nz_akahu_mcp import deps
-from nz_akahu_mcp.formatting import format_nzd
+from nz_akahu_mcp.formatting import format_money
 from nz_akahu_mcp.models import Transaction
 from nz_akahu_mcp.safety import require_write_consent
 
@@ -20,13 +20,18 @@ _VALID_ISSUE_TYPES: frozenset[str] = frozenset(
 
 
 def _summarise(txn: Transaction) -> dict[str, Any]:
-    """Convert a Transaction into the LLM-facing dict shape."""
+    """Convert a Transaction into the LLM-facing dict shape.
+
+    Amounts are formatted in NZD; Akahu's Transaction model does not carry a
+    per-transaction currency. For multi-currency accounts, read the parent
+    account's currency via `accounts/get_account(account_id)`.
+    """
     return {
         "id": txn.id,
         "account_id": txn.account,
         "date": txn.date.date().isoformat(),
         "description": txn.description,
-        "amount": format_nzd(txn.amount),
+        "amount": format_money(txn.amount, "NZD"),
         "amount_raw": txn.amount,
         "type": txn.type,
         "merchant": txn.merchant.name if txn.merchant else None,
@@ -44,12 +49,21 @@ async def get_transactions(
     max_amount: float | None = None,
     limit: int = 100,
 ) -> dict[str, Any]:
-    """List transactions with optional filters.
+    """List settled transactions with optional filters.
 
-    start_date and end_date are ISO 8601 timestamps the Akahu API filters server-side.
-    account_id is also pushed server-side via GET /accounts/{id}/transactions when
-    provided (saves transferring data for the user's other accounts). category,
-    min_amount, and max_amount are filtered client-side.
+    Returns {"transactions": [...]} where each entry has id, account_id,
+    date (YYYY-MM-DD), description, amount (NZD-formatted string,
+    e.g. "-$12.50"), amount_raw (float; negative = debit), type,
+    merchant (str | None), category (str | None).
+
+    Args:
+        account_id: Scope to one account (server-side filter).
+        start_date: ISO 8601 timestamp lower bound (server-side filter).
+        end_date: ISO 8601 timestamp upper bound (server-side filter).
+        category: Exact Category.name match (client-side filter).
+        min_amount: Lower bound on signed amount (client-side; negatives are debits).
+        max_amount: Upper bound on signed amount (client-side).
+        limit: Max items returned (default 100).
     """
     client = deps.get_client()
     if account_id is not None:
@@ -75,17 +89,29 @@ async def get_transactions(
 
 @server.tool
 async def get_transaction(transaction_id: str) -> dict[str, Any]:
-    """Fetch one transaction by id."""
+    """Fetch one transaction by id.
+
+    Returns the same shape as one entry in get_transactions["transactions"]:
+    id, account_id, date, description, amount, amount_raw, type, merchant,
+    category.
+
+    Args:
+        transaction_id: Akahu transaction id (e.g. "txn_a1b2c3").
+    """
     txn = await deps.get_client().get_transaction(transaction_id)
     return _summarise(txn)
 
 
 @server.tool
 async def get_transactions_by_ids(ids: list[str]) -> dict[str, Any]:
-    """Batch-fetch transactions by their ids (POST /transactions/ids).
+    """Batch-fetch transactions by their ids in one request.
 
-    Useful when a webhook delivers a list of changed transaction identifiers,
-    or when an LLM has accumulated several txn ids it wants to inspect together.
+    Useful when you have a list of transaction ids (e.g. from a webhook or
+    a prior query) and want to inspect them together. Returns
+    {"transactions": [...]} with the same per-entry shape as get_transactions.
+
+    Args:
+        ids: List of Akahu transaction ids.
     """
     txns = await deps.get_client().get_transactions_by_ids(ids)
     return {"transactions": [_summarise(t) for t in txns]}
@@ -95,8 +121,12 @@ async def get_transactions_by_ids(ids: list[str]) -> dict[str, Any]:
 async def get_pending_transactions() -> dict[str, Any]:
     """List all pending (not-yet-settled) transactions across the user's accounts.
 
-    Pending transactions affect your available balance even though they haven't
-    posted yet -- include these in cash-flow projections for near-term accuracy.
+    Include in cash-flow projections. Pending transactions affect available
+    balance immediately, but won't appear in get_transactions until they post.
+
+    Returns:
+        {"transactions": [...]} with id, account_id, date, description,
+        amount (NZD-formatted), amount_raw, type, merchant, category.
     """
     txns = await deps.get_client().get_pending_transactions()
     return {"transactions": [_summarise(t) for t in txns]}
@@ -104,7 +134,17 @@ async def get_pending_transactions() -> dict[str, Any]:
 
 @server.tool
 async def search_transactions(query: str, limit: int = 50) -> dict[str, Any]:
-    """Case-insensitive substring search across description and merchant.name."""
+    """Case-insensitive substring search across description and merchant.name.
+
+    Iterates all transactions until `limit` matches are found. Use for
+    free-text lookups; prefer get_transactions when filtering by date,
+    account, or amount. Returns {"transactions": [...]} with the same
+    per-entry shape as get_transactions.
+
+    Args:
+        query: Substring to match (case-insensitive).
+        limit: Max matches returned (default 50).
+    """
     needle = query.lower()
     matches: list[Transaction] = []
     async for txn in deps.get_client().iter_transactions():
@@ -122,7 +162,7 @@ async def search_transactions(query: str, limit: int = 50) -> dict[str, Any]:
 @require_write_consent(
     "Report an issue with transaction {transaction_id} to Akahu support staff. "
     "Issue type: {issue_type}.",
-    automatable=False,  # explicit: not bypassable -- sends a ticket to a human.
+    automatable=False,
 )
 async def report_transaction_issue(
     *,
@@ -133,7 +173,23 @@ async def report_transaction_issue(
     comment: str | None = None,
     other_transaction_id: str | None = None,
 ) -> dict[str, Any]:
-    """Submit a support ticket about a transaction (duplicate or enrichment problem)."""
+    """Submit a support ticket about a transaction to Akahu staff.
+
+    Sends a ticket to a human at Akahu support. Always elicits user
+    confirmation (not bypass-eligible). issue_type validation:
+      - "DUPLICATE": requires other_transaction_id (the paired duplicate).
+      - "ENRICHMENT_ERROR": requires fields=[...] listing affected field names.
+      - "ENRICHMENT_SUGGESTION": requires fields=[...] listing suggested fields.
+
+    Returns {"success": bool, "message": str | None}.
+
+    Args:
+        transaction_id: Akahu transaction id the ticket is about.
+        issue_type: One of "DUPLICATE", "ENRICHMENT_ERROR", "ENRICHMENT_SUGGESTION".
+        fields: Affected field names; required for ENRICHMENT_* issue types.
+        comment: Optional free-text context for the support agent.
+        other_transaction_id: Paired transaction id; required for DUPLICATE.
+    """
     if issue_type not in _VALID_ISSUE_TYPES:
         raise ValueError(
             f"invalid issue_type {issue_type!r}; must be one of {sorted(_VALID_ISSUE_TYPES)}"

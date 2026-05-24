@@ -3,10 +3,9 @@
 Three layers protect write operations:
   1. AKAHU_READ_ONLY=true (default) -> raise ReadOnlyError before any HTTP call.
   2. ctx.elicit() per call -> raise ElicitationDeclinedError on Decline/Cancel.
-  3. automation_bypass + automatable=True opts out of (2) for a small subset.
+  3. automation_bypass + automatable=True opts out of (2) for marked tools.
 
-The bypass is tracked in a module-level registry so the startup banner can
-list eligible tools without re-introspecting tool modules.
+`bypass_eligible_tools()` returns the names registered with automatable=True.
 """
 
 from __future__ import annotations
@@ -75,10 +74,9 @@ def require_write_consent(
     action_description may contain `{placeholders}` filled from the tool's kwargs
     (e.g. "Refresh account {account_id}.").
 
-    automatable=True marks the tool as bypass-eligible. Must satisfy ALL four
-    criteria: idempotent or rate-limited; no third-party side effects;
-    easily reversed or self-corrects; common automation use case. Justify
-    inline with a comment when adding it to a tool.
+    automatable=True marks the tool as bypass-eligible: when
+    AKAHU_AUTOMATION_BYPASS=true, the elicit() prompt is skipped for these
+    tools only.
     """
 
     def decorator(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
@@ -103,7 +101,7 @@ def require_write_consent(
             if automatable and cfg.automation_bypass:
                 logger.info("[BYPASS] %s: %s", fn.__name__, rendered)
             else:
-                if ctx is None:  # pragma: no cover  # why: ctx is always injected by FastMCP
+                if ctx is None:  # pragma: no cover
                     raise ToolError("Internal error: write tool missing ctx parameter.")
                 await confirm_write(ctx, rendered)
 

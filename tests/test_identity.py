@@ -1,4 +1,4 @@
-"""Tests for the identity sub-server: 1 read + 1 write (always elicits)."""
+"""Tests for the identity sub-server."""
 
 from __future__ import annotations
 

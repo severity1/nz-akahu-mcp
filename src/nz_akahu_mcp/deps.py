@@ -2,8 +2,6 @@
 
 Tools call `get_client()` to obtain a shared async HTTP client. The first call
 constructs it; subsequent calls reuse the same instance.
-
-Tests can `monkeypatch.setattr(deps, "_client", fake)` to inject a stub.
 """
 
 from __future__ import annotations
