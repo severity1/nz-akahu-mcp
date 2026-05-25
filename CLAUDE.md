@@ -103,9 +103,12 @@ Verify with: `uv run python -c 'import asyncio; from nz_akahu_mcp.server import 
 
 ## Akahu API constraints
 
-- **Personal Apps only.** App-scoped endpoints (`/categories`, `/connections`,
-  `/parties`, `/identity/{id}/verify-name`) are unreachable and not exposed.
-  Don't add tools for them; they will 403.
+- **Personal Apps only.** Akahu's Personal-Apps doc states verbatim:
+  "App-scoped endpoints are not available to Personal Apps." In scope:
+  `/categories`, `/categories/{id}`, `/connections`, `/connections/{id}`,
+  `/parties`, `/parties/{code}`, `/identity/{id}/verify-name`. All 403 from
+  a Personal-App token. Do not add tools for them. Webhooks and Payments
+  are likewise blocked for Personal Apps per the same doc.
 - **Two-header auth.** Every request needs `Authorization: Bearer <user_token>`
   and `X-Akahu-Id: <app_token>`. Handled centrally by `AkahuClient`.
 - **`Transaction` has no per-transaction currency.** Transactions are formatted

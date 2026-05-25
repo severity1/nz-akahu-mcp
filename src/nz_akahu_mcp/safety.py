@@ -2,7 +2,8 @@
 
 Three layers protect write operations:
   1. AKAHU_READ_ONLY=true (default) -> raise ReadOnlyError before any HTTP call.
-  2. ctx.elicit() per call -> raise ElicitationDeclinedError on Decline/Cancel.
+  2. ctx.elicit() per call -> raise ElicitationDeclinedError on Decline,
+     ElicitationCancelledError (a subclass) on Cancel.
   3. automation_bypass + automatable=True opts out of (2) for marked tools.
 
 `bypass_eligible_tools()` returns the names registered with automatable=True.
@@ -16,7 +17,12 @@ from functools import wraps
 from typing import Any, ParamSpec, TypeVar
 
 from fastmcp.exceptions import ToolError
-from fastmcp.server.elicitation import AcceptedElicitation
+from fastmcp.server.elicitation import (
+    AcceptedElicitation,
+    CancelledElicitation,
+    DeclinedElicitation,
+)
+from pydantic import BaseModel
 
 from nz_akahu_mcp.config import AkahuConfig
 
@@ -37,7 +43,29 @@ class ReadOnlyError(ToolError):
 
 
 class ElicitationDeclinedError(ToolError):
-    """Raised when the user declines or cancels a write elicitation."""
+    """Raised when the user declines a write elicitation.
+
+    Also the base class for ElicitationCancelledError, so `except
+    ElicitationDeclinedError` catches both decline and cancel outcomes.
+    """
+
+
+class ElicitationCancelledError(ElicitationDeclinedError):
+    """Raised when the user cancels (rather than explicitly declines).
+
+    Subclass of ElicitationDeclinedError so binary "did the user consent?"
+    handlers keep working while audit/log paths can distinguish the actions.
+    """
+
+
+class _Confirmation(BaseModel):
+    """Empty schema for confirmation-only elicitations.
+
+    Replaces the deprecated response_type=None form, which causes some
+    clients (e.g. VS Code) to render an empty, non-functional form. With
+    this empty model the client shows only the message and accept/
+    decline/cancel actions.
+    """
 
 
 def render_action_description(template: str, kwargs: dict[str, Any]) -> str:
@@ -57,11 +85,47 @@ def render_action_description(template: str, kwargs: dict[str, Any]) -> str:
 async def confirm_write(ctx: Any, action_description: str) -> None:
     """Ask the user to confirm a write. Raise on decline/cancel."""
     message = f"Confirm: {action_description}"
-    result = await ctx.elicit(message, response_type=None)
-    if not isinstance(result, AcceptedElicitation):
-        raise ElicitationDeclinedError(
-            f"User declined or cancelled: {action_description}"
-        )
+    result = await ctx.elicit(message, response_type=_Confirmation)
+    match result:
+        case AcceptedElicitation():
+            return
+        case DeclinedElicitation():
+            raise ElicitationDeclinedError(
+                f"User declined: {action_description}"
+            )
+        case CancelledElicitation():
+            raise ElicitationCancelledError(
+                f"User cancelled: {action_description}"
+            )
+        case _:  # pragma: no cover  # why: ctx.elicit return type is exhausted above
+            raise AssertionError(
+                f"Unexpected elicitation result: {type(result).__name__}"
+            )
+
+
+async def elicit_value(ctx: Any, prompt: str, response_type: Any) -> Any:
+    """Ask the user to supply a typed value mid-call. Raise on decline/cancel.
+
+    Wraps FastMCP 3.3's typed elicitation: `response_type` is forwarded to the
+    client and serialised into JSON Schema, so primitives (str, int), `list[T]`,
+    and Pydantic models all render as appropriate UI in the client.
+    """
+    result = await ctx.elicit(prompt, response_type=response_type)
+    match result:
+        case AcceptedElicitation():
+            return result.data
+        case DeclinedElicitation():
+            raise ElicitationDeclinedError(
+                f"User declined providing: {prompt}"
+            )
+        case CancelledElicitation():
+            raise ElicitationCancelledError(
+                f"User cancelled providing: {prompt}"
+            )
+        case _:  # pragma: no cover  # why: ctx.elicit return type is exhausted above
+            raise AssertionError(
+                f"Unexpected elicitation result: {type(result).__name__}"
+            )
 
 
 def require_write_consent(

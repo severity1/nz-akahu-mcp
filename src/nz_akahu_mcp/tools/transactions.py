@@ -9,7 +9,11 @@ from fastmcp import Context, FastMCP
 from nz_akahu_mcp import deps
 from nz_akahu_mcp.formatting import format_money
 from nz_akahu_mcp.models import Transaction
-from nz_akahu_mcp.safety import require_write_consent
+from nz_akahu_mcp.safety import (
+    ElicitationDeclinedError,
+    elicit_value,
+    require_write_consent,
+)
 
 server: FastMCP[Any] = FastMCP("transactions")
 
@@ -187,21 +191,29 @@ async def report_transaction_issue(
         transaction_id: Akahu transaction id the ticket is about.
         issue_type: One of "DUPLICATE", "ENRICHMENT_ERROR", "ENRICHMENT_SUGGESTION".
         fields: Affected field names; required for ENRICHMENT_* issue types.
+            Omitted -> the user is prompted to supply them via elicitation.
         comment: Optional free-text context for the support agent.
         other_transaction_id: Paired transaction id; required for DUPLICATE.
+            Omitted -> the user is prompted to supply it via elicitation.
     """
     if issue_type not in _VALID_ISSUE_TYPES:
         raise ValueError(
             f"invalid issue_type {issue_type!r}; must be one of {sorted(_VALID_ISSUE_TYPES)}"
         )
     if issue_type == "DUPLICATE" and not other_transaction_id:
-        raise ValueError(
-            "issue_type=DUPLICATE requires other_transaction_id to identify the pair."
+        other_transaction_id = await elicit_value(
+            ctx,
+            "Provide the paired duplicate transaction id:",
+            str,
         )
     if issue_type in {"ENRICHMENT_ERROR", "ENRICHMENT_SUGGESTION"} and not fields:
-        raise ValueError(
-            f"issue_type={issue_type} requires fields=[...] listing the affected fields."
+        fields = await elicit_value(
+            ctx,
+            f"List the affected field names for {issue_type} (e.g. merchant, category):",
+            list[str],
         )
+        if not fields:
+            raise ElicitationDeclinedError("User provided no fields.")
 
     result = await deps.get_client().report_transaction_issue(
         transaction_id,

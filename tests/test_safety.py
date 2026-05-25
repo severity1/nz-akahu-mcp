@@ -35,11 +35,34 @@ async def test_confirm_write_raises_on_decline(
 async def test_confirm_write_raises_on_cancel(
     fake_env: None, ctx_factory: Callable[..., MagicMock]
 ) -> None:
-    from nz_akahu_mcp.safety import ElicitationDeclinedError, confirm_write
+    from nz_akahu_mcp.safety import ElicitationCancelledError, confirm_write
 
     ctx = ctx_factory(elicit_action="cancel")
-    with pytest.raises(ElicitationDeclinedError):
+    with pytest.raises(ElicitationCancelledError):
         await confirm_write(ctx, "Do the thing?")
+
+
+async def test_confirm_write_passes_explicit_response_type(
+    fake_env: None, ctx_factory: Callable[..., MagicMock]
+) -> None:
+    """Lock in the FastMCP 3.3 deprecation fix: never pass response_type=None."""
+    from nz_akahu_mcp.safety import confirm_write
+
+    ctx = ctx_factory(elicit_action="accept")
+    await confirm_write(ctx, "Do the thing?")
+    _, kwargs = ctx.elicit.call_args
+    assert kwargs.get("response_type") is not None
+
+
+def test_cancelled_error_is_a_declined_error() -> None:
+    """Subclass relationship lets binary 'did the user consent?' handlers
+    catch both outcomes via `except ElicitationDeclinedError`."""
+    from nz_akahu_mcp.safety import (
+        ElicitationCancelledError,
+        ElicitationDeclinedError,
+    )
+
+    assert issubclass(ElicitationCancelledError, ElicitationDeclinedError)
 
 
 async def test_require_write_consent_blocks_in_readonly(
@@ -93,14 +116,14 @@ async def test_require_write_consent_aborts_on_decline(
 async def test_require_write_consent_aborts_on_cancel(
     writable_env: None, ctx_factory: Callable[..., MagicMock]
 ) -> None:
-    from nz_akahu_mcp.safety import ElicitationDeclinedError, require_write_consent
+    from nz_akahu_mcp.safety import ElicitationCancelledError, require_write_consent
 
     @require_write_consent("Do the thing")
     async def my_tool(*, ctx: Any, value: int) -> int:
         return value * 2  # pragma: no cover  # why: cancel short-circuits
 
     ctx = ctx_factory(elicit_action="cancel")
-    with pytest.raises(ElicitationDeclinedError):
+    with pytest.raises(ElicitationCancelledError):
         await my_tool(ctx=ctx, value=21)
 
 
@@ -222,3 +245,34 @@ async def test_require_write_consent_renders_kwargs_in_prompt(
     assert result == "refreshed-acc_xyz"
     msg = ctx.elicit.await_args[0][0]
     assert "acc_xyz" in msg
+
+
+async def test_elicit_value_returns_data_on_accept(
+    fake_env: None, ctx_factory: Callable[..., MagicMock]
+) -> None:
+    from nz_akahu_mcp.safety import elicit_value
+
+    ctx = ctx_factory(elicit_action="accept", elicit_data="txn_002")
+    value = await elicit_value(ctx, "Provide id:", str)
+    assert value == "txn_002"
+    assert ctx.elicit.await_args.kwargs["response_type"] is str
+
+
+async def test_elicit_value_raises_on_decline(
+    fake_env: None, ctx_factory: Callable[..., MagicMock]
+) -> None:
+    from nz_akahu_mcp.safety import ElicitationDeclinedError, elicit_value
+
+    ctx = ctx_factory(elicit_action="decline")
+    with pytest.raises(ElicitationDeclinedError):
+        await elicit_value(ctx, "Provide id:", str)
+
+
+async def test_elicit_value_raises_on_cancel(
+    fake_env: None, ctx_factory: Callable[..., MagicMock]
+) -> None:
+    from nz_akahu_mcp.safety import ElicitationCancelledError, elicit_value
+
+    ctx = ctx_factory(elicit_action="cancel")
+    with pytest.raises(ElicitationCancelledError):
+        await elicit_value(ctx, "Provide id:", str)

@@ -124,11 +124,11 @@ async def test_verify_name_decline(
 async def test_verify_name_cancel(
     writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
 ) -> None:
-    from nz_akahu_mcp.safety import ElicitationDeclinedError
+    from nz_akahu_mcp.safety import ElicitationCancelledError
     from nz_akahu_mcp.tools.identity import verify_name
 
     ctx = ctx_factory(elicit_action="cancel")
-    with pytest.raises(ElicitationDeclinedError):
+    with pytest.raises(ElicitationCancelledError):
         await verify_name(ctx=ctx, family_name="Anderson")
 
 

@@ -257,11 +257,11 @@ async def test_report_transaction_issue_decline(
 async def test_report_transaction_issue_cancel(
     writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
 ) -> None:
-    from nz_akahu_mcp.safety import ElicitationDeclinedError
+    from nz_akahu_mcp.safety import ElicitationCancelledError
     from nz_akahu_mcp.tools.transactions import report_transaction_issue
 
     ctx = ctx_factory(elicit_action="cancel")
-    with pytest.raises(ElicitationDeclinedError):
+    with pytest.raises(ElicitationCancelledError):
         await report_transaction_issue(
             ctx=ctx, transaction_id="txn_001", issue_type="DUPLICATE"
         )
@@ -295,28 +295,114 @@ async def test_report_transaction_issue_validates_issue_type(
         )
 
 
-async def test_report_transaction_issue_duplicate_requires_other(
+async def test_report_transaction_issue_duplicate_elicits_other_id(
     writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
 ) -> None:
+    """When other_transaction_id is omitted, the tool prompts for it mid-call.
+
+    Pattern: build ctx via ctx_factory(), then override ctx.elicit.side_effect
+    with the sequence of results we want. First call is the safety
+    confirmation (empty AcceptedElicitation), second is the typed value.
+    """
+    from fastmcp.server.elicitation import AcceptedElicitation
+
     from nz_akahu_mcp.tools.transactions import report_transaction_issue
 
-    ctx = ctx_factory(elicit_action="accept")
-    with pytest.raises(ValueError, match="other_transaction_id"):
+    ctx = ctx_factory()
+    ctx.elicit.side_effect = [
+        AcceptedElicitation(data={}),
+        AcceptedElicitation(data="txn_002"),
+    ]
+    result = await report_transaction_issue(
+        ctx=ctx, transaction_id="txn_001", issue_type="DUPLICATE"
+    )
+    assert result["success"] is True
+    assert ctx.elicit.await_count == 2
+    _, kwargs = patched_client.report_transaction_issue.await_args
+    assert kwargs["other_transaction_id"] == "txn_002"
+
+
+async def test_report_transaction_issue_enrichment_elicits_fields(
+    writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
+) -> None:
+    from fastmcp.server.elicitation import AcceptedElicitation
+
+    from nz_akahu_mcp.tools.transactions import report_transaction_issue
+
+    ctx = ctx_factory()
+    ctx.elicit.side_effect = [
+        AcceptedElicitation(data={}),
+        AcceptedElicitation(data=["merchant", "category"]),
+    ]
+    result = await report_transaction_issue(
+        ctx=ctx, transaction_id="txn_001", issue_type="ENRICHMENT_ERROR"
+    )
+    assert result["success"] is True
+    assert ctx.elicit.await_count == 2
+    _, kwargs = patched_client.report_transaction_issue.await_args
+    assert kwargs["fields"] == ["merchant", "category"]
+
+
+async def test_report_transaction_issue_field_fill_decline(
+    writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
+) -> None:
+    from fastmcp.server.elicitation import AcceptedElicitation, DeclinedElicitation
+
+    from nz_akahu_mcp.safety import ElicitationDeclinedError
+    from nz_akahu_mcp.tools.transactions import report_transaction_issue
+
+    ctx = ctx_factory()
+    ctx.elicit.side_effect = [
+        AcceptedElicitation(data={}),
+        DeclinedElicitation(),
+    ]
+    with pytest.raises(ElicitationDeclinedError):
         await report_transaction_issue(
             ctx=ctx, transaction_id="txn_001", issue_type="DUPLICATE"
         )
+    patched_client.report_transaction_issue.assert_not_awaited()
 
 
-async def test_report_transaction_issue_enrichment_requires_fields(
+async def test_report_transaction_issue_field_fill_cancel(
     writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
 ) -> None:
+    from fastmcp.server.elicitation import AcceptedElicitation, CancelledElicitation
+
+    from nz_akahu_mcp.safety import ElicitationCancelledError
     from nz_akahu_mcp.tools.transactions import report_transaction_issue
 
-    ctx = ctx_factory(elicit_action="accept")
-    with pytest.raises(ValueError, match="fields"):
+    ctx = ctx_factory()
+    ctx.elicit.side_effect = [
+        AcceptedElicitation(data={}),
+        CancelledElicitation(),
+    ]
+    with pytest.raises(ElicitationCancelledError):
+        await report_transaction_issue(
+            ctx=ctx, transaction_id="txn_001", issue_type="DUPLICATE"
+        )
+    patched_client.report_transaction_issue.assert_not_awaited()
+
+
+async def test_report_transaction_issue_empty_fields_treated_as_decline(
+    writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
+) -> None:
+    """An empty list payload from the user is effectively a decline; do not
+    forward an empty fields=[] body to Akahu (it would 400)."""
+    from fastmcp.server.elicitation import AcceptedElicitation
+
+    from nz_akahu_mcp.safety import ElicitationDeclinedError
+    from nz_akahu_mcp.tools.transactions import report_transaction_issue
+
+    ctx = ctx_factory()
+    ctx.elicit.side_effect = [
+        AcceptedElicitation(data={}),
+        AcceptedElicitation(data=[]),
+    ]
+    with pytest.raises(ElicitationDeclinedError):
         await report_transaction_issue(
             ctx=ctx, transaction_id="txn_001", issue_type="ENRICHMENT_ERROR"
         )
+    patched_client.report_transaction_issue.assert_not_awaited()
 
 
 async def test_report_transaction_issue_enrichment_suggestion_ok(
