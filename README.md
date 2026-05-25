@@ -15,7 +15,7 @@ hosted backend.
 2. **[`uv`](https://docs.astral.sh/uv/)** for the `uvx` runner (or pip with a virtualenv)
 3. **[Claude Code](https://docs.claude.com/en/docs/claude-code/overview)** or **[Claude Desktop](https://claude.ai/download)**
 
-Set your tokens once in your shell (or write them into the `claude mcp add` / config-file commands below):
+The recommended install path below (marketplace plugin) prompts for your tokens and stores them in your OS keychain. Only the manual paths further down need shell env vars:
 
 ```bash
 export AKAHU_APP_TOKEN="app_token_..."
@@ -25,11 +25,28 @@ export AKAHU_READ_ONLY=true
 export AKAHU_AUTOMATION_BYPASS=false
 ```
 
-## Install in Claude Code
+## Install via Claude marketplace plugin (recommended)
 
-Pick whichever fits your situation.
+Works in **both Claude Code and Claude Desktop**. Tokens prompt at install and are stored in your OS keychain (macOS Keychain on macOS, Windows Credential Manager on Windows). No shell env or `.env` file required; the package stays unchanged on PyPI.
 
-### Option A: remote install via `claude mcp add` (recommended)
+**Claude Code (v2.1.83 or later):**
+
+```text
+/plugin marketplace add severity1/severity1-marketplace
+/plugin install nz-akahu-mcp@severity1-marketplace
+```
+
+**Claude Desktop:** Cowork -> Plugins -> Add marketplace -> `severity1/severity1-marketplace` -> Install `nz-akahu-mcp`.
+
+> **Known issue (May 2026):** Claude Desktop's install-time prompt for `userConfig` values may not fire ([anthropics/claude-code#39827](https://github.com/anthropics/claude-code/issues/39827), [#39455](https://github.com/anthropics/claude-code/issues/39455)). Workaround: after install, click the installed plugin and use **Configure options** to set the four values. Claude Code's CLI install prompt works correctly.
+
+After install, `/mcp` should show `nz-akahu-mcp` connected. See [`plugin/README.md`](plugin/README.md) for the configure / reconfigure / uninstall flow and the full table of prompted values.
+
+## Install in Claude Code (manual)
+
+Use these paths if you prefer not to use the marketplace plugin, or if you're hacking on the server locally.
+
+### Option A: remote install via `claude mcp add`
 
 Once published to PyPI:
 
@@ -108,9 +125,9 @@ claude mcp get nz-akahu        # shows the resolved command and env
 
 Inside Claude Code, ask: *"What accounts do I have?"* - it should call `nz-akahu_accounts_list_accounts` and return masked account details.
 
-## Install in Claude Desktop
+## Install in Claude Desktop (manual)
 
-Copy `examples/claude_desktop_config.json` into your Claude Desktop config and replace the placeholders. The config lives at:
+If you'd rather not use the marketplace plugin path, copy `examples/claude_desktop_config.json` into your Claude Desktop config and replace the placeholders. The config lives at:
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
