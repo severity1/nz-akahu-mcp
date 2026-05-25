@@ -173,11 +173,11 @@ async def test_refresh_all_aborts_on_decline(
 async def test_refresh_all_aborts_on_cancel(
     writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
 ) -> None:
-    from nz_akahu_mcp.safety import ElicitationDeclinedError
+    from nz_akahu_mcp.safety import ElicitationCancelledError
     from nz_akahu_mcp.tools.accounts import refresh_all_accounts
 
     ctx = ctx_factory(elicit_action="cancel")
-    with pytest.raises(ElicitationDeclinedError):
+    with pytest.raises(ElicitationCancelledError):
         await refresh_all_accounts(ctx=ctx)
     patched_client.refresh_all.assert_not_awaited()
 
@@ -236,11 +236,11 @@ async def test_refresh_account_aborts_on_decline(
 async def test_refresh_account_aborts_on_cancel(
     writable_env: None, ctx_factory: Callable[..., MagicMock], patched_client: MagicMock
 ) -> None:
-    from nz_akahu_mcp.safety import ElicitationDeclinedError
+    from nz_akahu_mcp.safety import ElicitationCancelledError
     from nz_akahu_mcp.tools.accounts import refresh_account
 
     ctx = ctx_factory(elicit_action="cancel")
-    with pytest.raises(ElicitationDeclinedError):
+    with pytest.raises(ElicitationCancelledError):
         await refresh_account(ctx=ctx, account_id="acc_chq_001")
 
 
