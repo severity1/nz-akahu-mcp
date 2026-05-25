@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "nz-akahu-mcp": {
+      "command": "uvx",
+      "args": ["nz-akahu-mcp"],
+      "env": {
+        "AKAHU_USER_TOKEN": "${user_config.akahu_user_token}",
+        "AKAHU_APP_TOKEN": "${user_config.akahu_app_token}",
+        "AKAHU_READ_ONLY": "${user_config.akahu_read_only}",
+        "AKAHU_AUTOMATION_BYPASS": "${user_config.akahu_automation_bypass}"
+      }
+    }
+  }
+}
