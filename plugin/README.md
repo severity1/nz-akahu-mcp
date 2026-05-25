@@ -1,12 +1,14 @@
-# nz-akahu-mcp (Claude plugin)
+# nz-akahu-mcp (Claude Code plugin)
 
-This plugin packages [`nz-akahu-mcp`](https://github.com/severity1/nz-akahu-mcp) for installation via Claude marketplaces. It exposes 14 MCP tools for the Akahu open-finance API (NZ), with credentials prompted at install and stored in your OS keychain (macOS Keychain on macOS, Windows Credential Manager on Windows). See the [main repo README](https://github.com/severity1/nz-akahu-mcp#readme) for tool reference and architecture details.
+This plugin packages [`nz-akahu-mcp`](https://github.com/severity1/nz-akahu-mcp) for installation in **Claude Code** via the severity1 marketplace. It exposes 14 MCP tools for the Akahu open-finance API (NZ), with credentials prompted at install and stored in your OS keychain (macOS Keychain on macOS, Windows Credential Manager on Windows). See the [main repo README](https://github.com/severity1/nz-akahu-mcp#readme) for tool reference and architecture details.
+
+> **Claude Desktop users:** use the `.mcpb` Desktop Extension instead - see the [main README](https://github.com/severity1/nz-akahu-mcp#install-in-claude-desktop). Claude Desktop has no UI to configure marketplace-plugin `userConfig` values ([anthropics/claude-code#39455](https://github.com/anthropics/claude-code/issues/39455), [#39827](https://github.com/anthropics/claude-code/issues/39827)).
 
 ## Prerequisites
 
 1. **Akahu Personal App + User token** - register at https://my.akahu.nz/developers
 2. **[`uv`](https://docs.astral.sh/uv/)** on `PATH` so `uvx` can launch the server
-3. **Claude Code** (v2.1.83 or later) or **Claude Desktop**
+3. **Claude Code** (v2.1.83 or later)
 
 ## Install in Claude Code
 
@@ -31,12 +33,6 @@ After install: `/mcp` should show `nz-akahu-mcp` connected. Ask Claude *"what ac
 ### Reconfigure later
 
 `/plugin` -> Installed -> nz-akahu-mcp -> Configure options. Useful for flipping `read-only` to `false` when you need a refresh, then back to `true`.
-
-## Install in Claude Desktop
-
-Open Claude Desktop -> Cowork -> Plugins -> Add marketplace -> `severity1/severity1-marketplace`. Install `nz-akahu-mcp` from the marketplace listing.
-
-**Known issue (May 2026):** Claude Desktop's install-time `userConfig` prompt may not fire ([anthropics/claude-code#39827](https://github.com/anthropics/claude-code/issues/39827), [#39455](https://github.com/anthropics/claude-code/issues/39455)). Workaround: after install, click the installed plugin and use **Configure options** to set the four values. The plugin works correctly once configured; only the install-time prompt is affected.
 
 ## Verifying the install
 
