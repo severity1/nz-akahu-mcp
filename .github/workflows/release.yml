@@ -75,6 +75,44 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  build-mcpb:
+    name: build .mcpb desktop extension
+    needs: test
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      # gh release upload writes to the Release the workflow was triggered by.
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: assert mcpb manifest version matches release tag
+        run: |
+          manifest_version=$(jq -r .version mcpb/manifest.json)
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$manifest_version" != "$tag_version" ]; then
+            echo "Version mismatch: mcpb/manifest.json=$manifest_version but release tag=$tag_version"
+            exit 1
+          fi
+          echo "Version $manifest_version matches tag $GITHUB_REF_NAME"
+
+      - name: pack .mcpb bundle
+        run: |
+          mkdir -p dist
+          version="${GITHUB_REF_NAME#v}"
+          npx -y @anthropic-ai/mcpb pack mcpb "dist/nz-akahu-mcp-${version}.mcpb"
+
+      - name: upload to GitHub Release
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release upload "${GITHUB_REF_NAME}" "dist/nz-akahu-mcp-${version}.mcpb" --clobber
+
   publish:
     name: publish to PyPI
     needs: build

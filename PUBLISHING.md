@@ -50,14 +50,19 @@ https://test.pypi.org and duplicate the publish job in the workflow with
 
 ## Cutting a release
 
-1. **Bump the version** in two files (must match):
+1. **Bump the version** in three files (must match):
 
    - `pyproject.toml` `[project] version` - the workflow asserts this matches
      the release tag (minus the leading `v`).
-   - `plugin/.claude-plugin/plugin.json` `version` - the Claude plugin overlay
-     served from this repo's `plugin/` subdir to the severity1 marketplace.
-     Keep it in lockstep with the PyPI version so marketplace installers and
-     PyPI installers report the same number.
+   - `plugin/.claude-plugin/plugin.json` `version` - the Claude Code marketplace
+     plugin overlay served from this repo's `plugin/` subdir to the severity1
+     marketplace.
+   - `mcpb/manifest.json` `version` - the Claude Desktop Extension (`.mcpb`)
+     overlay packed by CI and attached to the GitHub Release. The `build-mcpb`
+     job asserts this matches the release tag.
+
+   All three must match; marketplace installers, PyPI installers, and
+   Desktop Extension installers should report the same number.
 
 2. **Commit, tag, and push:**
 
@@ -74,11 +79,17 @@ The Release event triggers the workflow:
 
 - `test`: ruff + mypy + pytest (100% coverage gate)
 - `build`: `uv build` produces sdist + wheel; asserts pyproject version == tag
+- `build-mcpb`: `npx -y @anthropic-ai/mcpb pack mcpb` produces
+  `dist/nz-akahu-mcp-X.Y.Z.mcpb`; asserts manifest version == tag; uploads
+  the bundle to the GitHub Release via `gh release upload`
 - `publish`: pauses on the `pypi` environment for approval (if required
   reviewers are configured), then OIDC-publishes to PyPI
 
 The package appears at https://pypi.org/project/nz-akahu-mcp/ within a minute,
-and `uvx nz-akahu-mcp` / `pip install nz-akahu-mcp` start resolving it.
+and `uvx nz-akahu-mcp` / `pip install nz-akahu-mcp` start resolving it. The
+`.mcpb` appears as a release asset at
+https://github.com/severity1/nz-akahu-mcp/releases/tag/vX.Y.Z and is
+downloadable by Claude Desktop users.
 
 ## Manual publish (fallback)
 

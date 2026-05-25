@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.3",
+  "name": "nz-akahu-mcp",
+  "display_name": "NZ Akahu MCP",
+  "version": "0.1.2",
+  "description": "Unofficial MCP server for the Akahu open-finance API (NZ). 14 tools, read-only by default, runs locally over stdio.",
+  "author": {
+    "name": "severity1",
+    "email": "johnreilly.pospos@gmail.com",
+    "url": "https://github.com/severity1"
+  },
+  "homepage": "https://github.com/severity1/nz-akahu-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/severity1/nz-akahu-mcp"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "akahu", "open-finance", "new-zealand", "banking"],
+  "server": {
+    "type": "python",
+    "entry_point": "nz_akahu_mcp.server",
+    "mcp_config": {
+      "command": "uvx",
+      "args": ["nz-akahu-mcp"],
+      "env": {
+        "AKAHU_USER_TOKEN": "${user_config.akahu_user_token}",
+        "AKAHU_APP_TOKEN": "${user_config.akahu_app_token}",
+        "AKAHU_READ_ONLY": "${user_config.akahu_read_only}",
+        "AKAHU_AUTOMATION_BYPASS": "${user_config.akahu_automation_bypass}"
+      }
+    }
+  },
+  "user_config": {
+    "akahu_user_token": {
+      "type": "string",
+      "title": "Akahu User Token",
+      "description": "User token from https://my.akahu.nz/developers. Stored in your OS credential store.",
+      "sensitive": true,
+      "required": true
+    },
+    "akahu_app_token": {
+      "type": "string",
+      "title": "Akahu App Token",
+      "description": "App token from https://my.akahu.nz/developers. Stored in your OS credential store.",
+      "sensitive": true,
+      "required": true
+    },
+    "akahu_read_only": {
+      "type": "string",
+      "title": "Read-only mode",
+      "description": "Refuse all write tools when 'true'. Leave as 'true' unless you specifically need refresh/verify/report writes.",
+      "default": "true",
+      "required": false
+    },
+    "akahu_automation_bypass": {
+      "type": "string",
+      "title": "Automation bypass",
+      "description": "Skip per-call consent prompts for safe-to-automate writes (account refresh only). Requires read-only=false.",
+      "default": "false",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}
