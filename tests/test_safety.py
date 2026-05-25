@@ -245,3 +245,34 @@ async def test_require_write_consent_renders_kwargs_in_prompt(
     assert result == "refreshed-acc_xyz"
     msg = ctx.elicit.await_args[0][0]
     assert "acc_xyz" in msg
+
+
+async def test_elicit_value_returns_data_on_accept(
+    fake_env: None, ctx_factory: Callable[..., MagicMock]
+) -> None:
+    from nz_akahu_mcp.safety import elicit_value
+
+    ctx = ctx_factory(elicit_action="accept", elicit_data="txn_002")
+    value = await elicit_value(ctx, "Provide id:", str)
+    assert value == "txn_002"
+    assert ctx.elicit.await_args.kwargs["response_type"] is str
+
+
+async def test_elicit_value_raises_on_decline(
+    fake_env: None, ctx_factory: Callable[..., MagicMock]
+) -> None:
+    from nz_akahu_mcp.safety import ElicitationDeclinedError, elicit_value
+
+    ctx = ctx_factory(elicit_action="decline")
+    with pytest.raises(ElicitationDeclinedError):
+        await elicit_value(ctx, "Provide id:", str)
+
+
+async def test_elicit_value_raises_on_cancel(
+    fake_env: None, ctx_factory: Callable[..., MagicMock]
+) -> None:
+    from nz_akahu_mcp.safety import ElicitationCancelledError, elicit_value
+
+    ctx = ctx_factory(elicit_action="cancel")
+    with pytest.raises(ElicitationCancelledError):
+        await elicit_value(ctx, "Provide id:", str)

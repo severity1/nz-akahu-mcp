@@ -103,6 +103,31 @@ async def confirm_write(ctx: Any, action_description: str) -> None:
             )
 
 
+async def elicit_value(ctx: Any, prompt: str, response_type: Any) -> Any:
+    """Ask the user to supply a typed value mid-call. Raise on decline/cancel.
+
+    Wraps FastMCP 3.3's typed elicitation: `response_type` is forwarded to the
+    client and serialised into JSON Schema, so primitives (str, int), `list[T]`,
+    and Pydantic models all render as appropriate UI in the client.
+    """
+    result = await ctx.elicit(prompt, response_type=response_type)
+    match result:
+        case AcceptedElicitation():
+            return result.data
+        case DeclinedElicitation():
+            raise ElicitationDeclinedError(
+                f"User declined providing: {prompt}"
+            )
+        case CancelledElicitation():
+            raise ElicitationCancelledError(
+                f"User cancelled providing: {prompt}"
+            )
+        case _:  # pragma: no cover  # why: ctx.elicit return type is exhausted above
+            raise AssertionError(
+                f"Unexpected elicitation result: {type(result).__name__}"
+            )
+
+
 def require_write_consent(
     action_description: str,
     *,
