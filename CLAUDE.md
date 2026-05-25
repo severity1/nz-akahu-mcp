@@ -139,13 +139,44 @@ read-only refusal.
 
 ## Distribution
 
-Single channel: **PyPI** (`uvx nz-akahu-mcp` / `pip install nz-akahu-mcp`).
-No Claude Code marketplace plugin, no bundled skill, no project-scope
-`.mcp.json` shipped in the repo (gitignored).
+Two channels, same code:
+
+1. **PyPI** (`uvx nz-akahu-mcp` / `pip install nz-akahu-mcp`) - primary, works
+   in any MCP host. The package source is `src/nz_akahu_mcp/`.
+2. **Claude plugin** (`severity1/severity1-marketplace`) - delivery wrapper
+   around the PyPI release. Plugin files live at `plugin/` inside this repo
+   and are pulled by the marketplace via `source: "git-subdir"` with
+   `path: "plugin"`.
+
+The plugin overlay is **three files**:
+
+- `plugin/.claude-plugin/plugin.json` - manifest. Declares `userConfig` for
+  the two Akahu tokens (`sensitive: true`) and the two safety flags (defaults
+  preserve the read-only/no-bypass posture).
+- `plugin/.mcp.json` - launch spec. Runs `uvx nz-akahu-mcp` and injects each
+  `userConfig` value into the matching `AKAHU_*` env var via
+  `${user_config.KEY}` substitution. The PyPI package's pydantic-settings
+  layer reads those env vars exactly as it does outside the plugin.
+- `plugin/README.md` - end-user install/setup notes for the marketplace path.
+
+Credential UX: Claude Code prompts at install, stores secrets in the OS
+keychain (macOS Keychain on macOS, Windows Credential Manager on Windows),
+and re-injects them at MCP launch. No shell env, no `.env`, no wrapper
+script. Adding a new env-configurable knob means adding both a `userConfig`
+entry in `plugin.json` and a matching `${user_config.KEY}` line in
+`.mcp.json`.
+
+The repo root must stay free of `.mcp.json` (it would conflict with
+project-scope auto-detection when developing locally). The `.gitignore`
+rule `/.mcp.json` is anchored to root so the plugin's file at
+`plugin/.mcp.json` stays tracked.
 
 Release flow is documented in `PUBLISHING.md`. Summary: bump
-`pyproject.toml` `version`, tag `vX.Y.Z`, push, publish GitHub Release.
-Trusted Publishing (OIDC) handles PyPI auth; no API tokens in repo secrets.
+`pyproject.toml` `version`, bump `plugin/.claude-plugin/plugin.json` `version`
+to match, tag `vX.Y.Z`, push, publish GitHub Release. Trusted Publishing
+(OIDC) handles PyPI auth; no API tokens in repo secrets. Marketplace clients
+re-pull the plugin from the tagged commit; no separate marketplace release
+is required.
 
 ## Style conventions (from user's global instructions)
 

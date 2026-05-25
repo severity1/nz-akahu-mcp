@@ -1,0 +1,36 @@
+{
+  "name": "nz-akahu-mcp",
+  "version": "0.1.0",
+  "description": "Unofficial MCP server for the Akahu open-finance API (NZ). 14 tools, read-only by default, runs locally over stdio.",
+  "author": {
+    "name": "severity1",
+    "email": "johnreilly.pospos@gmail.com"
+  },
+  "homepage": "https://github.com/severity1/nz-akahu-mcp",
+  "userConfig": {
+    "akahu_user_token": {
+      "type": "string",
+      "title": "Akahu User Token",
+      "description": "User token from https://my.akahu.nz/developers. Stored in your OS keychain (macOS Keychain / Windows Credential Manager).",
+      "sensitive": true
+    },
+    "akahu_app_token": {
+      "type": "string",
+      "title": "Akahu App Token",
+      "description": "App token from https://my.akahu.nz/developers. Stored in your OS keychain (macOS Keychain / Windows Credential Manager).",
+      "sensitive": true
+    },
+    "akahu_read_only": {
+      "type": "string",
+      "title": "Read-only mode",
+      "description": "Refuse all write tools when 'true'. Leave as 'true' unless you specifically need refresh/verify/report writes.",
+      "default": "true"
+    },
+    "akahu_automation_bypass": {
+      "type": "string",
+      "title": "Automation bypass",
+      "description": "Skip per-call consent prompts for safe-to-automate writes (account refresh only). Requires read-only=false.",
+      "default": "false"
+    }
+  }
+}

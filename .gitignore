@@ -33,6 +33,6 @@ coverage.xml
 # OS
 .DS_Store
 
-# Personal MCP wiring (project-scope auto-registration is a per-developer choice)
-.mcp.json
-.mcp-Disabled.json
+# Personal MCP wiring (project-scope auto-registration is a per-developer choice).
+# Anchored to repo root so plugin/.mcp.json (shipped to the marketplace) stays tracked.
+/.mcp.json
