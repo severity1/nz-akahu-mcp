@@ -44,7 +44,7 @@ After install, `/mcp` should show `nz-akahu-mcp` connected. See [`plugin/README.
 
 ## Install in Claude Code (manual)
 
-Use these paths if you prefer not to use the marketplace plugin, or if you're hacking on the server locally.
+> **Prefer the [marketplace plugin path](#install-via-claude-marketplace-plugin-recommended) above.** The manual options below exist for users hacking on the server source, pinning a specific git ref, or running in environments without marketplace access. They all require you to manage tokens via shell env vars or `--env` flags.
 
 ### Option A: remote install via `claude mcp add`
 
@@ -127,7 +127,9 @@ Inside Claude Code, ask: *"What accounts do I have?"* - it should call `nz-akahu
 
 ## Install in Claude Desktop (manual)
 
-If you'd rather not use the marketplace plugin path, copy `examples/claude_desktop_config.json` into your Claude Desktop config and replace the placeholders. The config lives at:
+> **Prefer the [marketplace plugin path](#install-via-claude-marketplace-plugin-recommended) above** - it works in Claude Desktop too, prompts for your tokens at install, and stores them in your OS keychain. Use this manual path only if you can't reach the marketplace or specifically want to hand-edit `claude_desktop_config.json`.
+
+Copy `examples/claude_desktop_config.json` into your Claude Desktop config and replace the placeholders. The config lives at:
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
