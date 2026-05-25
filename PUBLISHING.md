@@ -50,8 +50,14 @@ https://test.pypi.org and duplicate the publish job in the workflow with
 
 ## Cutting a release
 
-1. **Bump the version** in `pyproject.toml`. The workflow asserts the pyproject
-   `version` matches the release tag (minus the leading `v`).
+1. **Bump the version** in two files (must match):
+
+   - `pyproject.toml` `[project] version` - the workflow asserts this matches
+     the release tag (minus the leading `v`).
+   - `plugin/.claude-plugin/plugin.json` `version` - the Claude plugin overlay
+     served from this repo's `plugin/` subdir to the severity1 marketplace.
+     Keep it in lockstep with the PyPI version so marketplace installers and
+     PyPI installers report the same number.
 
 2. **Commit, tag, and push:**
 

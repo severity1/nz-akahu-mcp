@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nz-akahu-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "Unofficial MCP server for the Akahu open-finance API (New Zealand). Personal Apps, read-by-default, write-with-consent."
 readme = "README.md"
 license = { text = "Apache-2.0" }
