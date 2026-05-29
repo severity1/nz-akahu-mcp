@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "nz-akahu-mcp",
   "display_name": "NZ Akahu MCP",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Unofficial MCP server for the Akahu open-finance API (NZ). 14 tools, read-only by default, runs locally over stdio.",
   "author": {
     "name": "severity1",
