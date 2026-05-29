@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "nz-akahu-mcp": {
+    "akahu": {
       "command": "uvx",
       "args": ["nz-akahu-mcp"],
       "env": {
