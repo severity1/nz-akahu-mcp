@@ -123,7 +123,7 @@ claude mcp list                # confirms 'nz-akahu' is registered
 claude mcp get nz-akahu        # shows the resolved command and env
 ```
 
-Inside Claude Code, ask: *"What accounts do I have?"* - it should call `nz-akahu_accounts_list_accounts` and return masked account details.
+Inside Claude Code, ask: *"What accounts do I have?"* - it should call `nz-akahu_acct_list_accounts` and return masked account details.
 
 ## Install in Claude Desktop
 

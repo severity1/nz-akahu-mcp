@@ -37,7 +37,7 @@ After install: `/mcp` should show `nz-akahu-mcp` connected. Ask Claude *"what ac
 ## Verifying the install
 
 - `/mcp` lists `nz-akahu-mcp` as connected
-- Ask Claude to run a read tool (e.g. `accounts_list_accounts`): it returns masked account details
+- Ask Claude to run a read tool (e.g. `acct_list_accounts`): it returns masked account details
 - With defaults (`read-only=true`), any write tool refuses with `ReadOnlyError` before any HTTP call
 
 ## Updating

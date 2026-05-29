@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 def build_server() -> FastMCP[Any]:
     """Construct the root FastMCP server with all sub-servers mounted."""
     mcp: FastMCP[Any] = FastMCP("nz-akahu-mcp")
-    mcp.mount(accounts.server, namespace="accounts")
-    mcp.mount(transactions.server, namespace="transactions")
-    mcp.mount(identity.server, namespace="identity")
+    mcp.mount(accounts.server, namespace="acct")
+    mcp.mount(transactions.server, namespace="txn")
+    mcp.mount(identity.server, namespace="id")
     return mcp
 
 

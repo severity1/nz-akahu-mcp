@@ -39,9 +39,9 @@ coverage below 100% fails the build. Mypy runs in `strict` mode.
 src/nz_akahu_mcp/
 ├── server.py        Root FastMCP server; mounts 3 sub-servers under namespaces
 ├── tools/
-│   ├── accounts.py        6 tools (4 read, 2 write) under accounts/* namespace
-│   ├── transactions.py    6 tools (5 read, 1 write) under transactions/* namespace
-│   └── identity.py        2 tools (1 read, 1 write) under identity/* namespace
+│   ├── accounts.py        6 tools (4 read, 2 write) under acct/* namespace
+│   ├── transactions.py    6 tools (5 read, 1 write) under txn/* namespace
+│   └── identity.py        2 tools (1 read, 1 write) under id/* namespace
 ├── client.py        AkahuClient: httpx async client + 3-attempt retry/backoff
 ├── models.py        Pydantic shapes; aliases handle Akahu's _id / _account fields
 ├── config.py        AkahuConfig (pydantic-settings, env_prefix="AKAHU_")
@@ -54,7 +54,7 @@ src/nz_akahu_mcp/
 
 Each tool group is its own `FastMCP("name")` instance defined inside `tools/`,
 then mounted at the root in `server.py` via `mcp.mount(sub.server, namespace="...")`.
-Tools end up exposed as `<namespace>_<tool>` (e.g. `accounts_list_accounts`).
+Tools end up exposed as `<namespace>_<tool>` (e.g. `acct_list_accounts`).
 Adding a new tool means adding `@server.tool` inside one of the existing sub-server
 modules; adding a new sub-server means a new file under `tools/` and one
 `mcp.mount(...)` line in `server.py`.

@@ -15,24 +15,36 @@ async def test_root_server_exposes_all_14_tools(fake_env: None) -> None:
     names = {t.name for t in tools}
     expected = {
         # accounts (6)
-        "accounts_list_accounts",
-        "accounts_get_account",
-        "accounts_get_account_balance",
-        "accounts_get_pending_transactions",
-        "accounts_refresh_all_accounts",
-        "accounts_refresh_account",
+        "acct_list_accounts",
+        "acct_get_account",
+        "acct_get_account_balance",
+        "acct_get_pending_transactions",
+        "acct_refresh_all_accounts",
+        "acct_refresh_account",
         # transactions (6)
-        "transactions_get_transactions",
-        "transactions_get_transaction",
-        "transactions_get_transactions_by_ids",
-        "transactions_get_pending_transactions",
-        "transactions_search_transactions",
-        "transactions_report_transaction_issue",
+        "txn_get_transactions",
+        "txn_get_transaction",
+        "txn_get_transactions_by_ids",
+        "txn_get_pending_transactions",
+        "txn_search_transactions",
+        "txn_report_transaction_issue",
         # identity (2) -- /categories, /parties, /identity/{id}/verify-name are app-scoped
-        "identity_get_me",
-        "identity_verify_name",
+        "id_get_me",
+        "id_verify_name",
     }
     assert names == expected
+
+
+async def test_composed_plugin_names_fit_kiro_limit(fake_env: None) -> None:
+    """Guard: marketplace-plugin-composed names must stay within Kiro's 64-char cap."""
+    from nz_akahu_mcp.server import build_server
+
+    mcp = build_server()
+    tools = await mcp.list_tools()
+    prefix = "mcp__plugin_nz-akahu-mcp_akahu__"
+    for t in tools:
+        composed = prefix + t.name
+        assert len(composed) <= 64, f"{composed} is {len(composed)} chars"
 
 
 def test_startup_banner_when_bypass_off(
