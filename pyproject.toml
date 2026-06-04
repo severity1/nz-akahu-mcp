@@ -35,6 +35,8 @@ dev = [
     "respx>=0.21",
     "mypy>=1.11",
     "ruff>=0.6",
+    "bandit>=1.9.4",
+    "pip-audit>=2.10.0",
 ]
 
 [project.scripts]

@@ -8,8 +8,8 @@ Retries: 3 attempts on 5xx and httpx.TransportError, exponential backoff (1s/2s/
 429 honours Retry-After if numeric, otherwise falls back to the default schedule.
 Other 4xx surfaces immediately.
 
-Logging: INFO logs "GET /path -> 200" lines; DEBUG logs response bodies. Auth
-tokens are never logged.
+Logging: INFO logs "GET /path -> 200" lines. Auth tokens and API response
+bodies are never logged.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import logging
 from collections.abc import AsyncIterator
 from types import TracebackType
 from typing import Any, Self
+from urllib.parse import quote
 
 import httpx
 
@@ -31,11 +32,13 @@ from nz_akahu_mcp.models import (
     Transaction,
     VerifyNameResult,
 )
+from nz_akahu_mcp.safety import MissingCredentialsError
 
 logger = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 3
 _BASE_BACKOFF = 1.0
+_MAX_RETRY_AFTER = 60.0
 
 
 class AkahuClient:
@@ -43,6 +46,11 @@ class AkahuClient:
 
     def __init__(self, config: AkahuConfig | None = None) -> None:
         self.config = config or AkahuConfig()
+        if not self.config.is_configured:
+            raise MissingCredentialsError(
+                "AKAHU_APP_TOKEN and AKAHU_USER_TOKEN must both be set before "
+                "calling the Akahu API."
+            )
         self._client = httpx.AsyncClient(
             base_url=self.config.base_url,
             headers=self.config.auth_headers,
@@ -96,10 +104,9 @@ class AkahuClient:
             logger.info("%s %s -> %d", method, path, response.status_code)
 
             if response.status_code < 400:
-                logger.debug("response body: %s", response.text)
                 return response.json()  # type: ignore[no-any-return]
 
-            if response.status_code == 429:
+            if response.status_code == 429 and attempt < _MAX_ATTEMPTS - 1:
                 delay = self._retry_after_seconds(response, default=_BASE_BACKOFF * (2**attempt))
                 logger.warning("%s %s rate-limited; sleeping %.1fs", method, path, delay)
                 await asyncio.sleep(delay)
@@ -115,7 +122,8 @@ class AkahuClient:
 
             response.raise_for_status()
 
-        assert last_exc is not None  # noqa: S101
+        if last_exc is None:  # pragma: no cover
+            raise RuntimeError("Akahu request retry loop exhausted unexpectedly.")
         raise last_exc
 
     @staticmethod
@@ -125,9 +133,19 @@ class AkahuClient:
         if not raw:
             return default
         try:
-            return float(raw)
+            delay = float(raw)
         except ValueError:
             return default
+        if delay < 0:
+            return default
+        return min(delay, _MAX_RETRY_AFTER)
+
+    @staticmethod
+    def _path_segment(value: str, *, name: str) -> str:
+        """Encode a caller-supplied value as one URL path segment."""
+        if not value:
+            raise ValueError(f"{name} must not be empty")
+        return quote(value, safe="")
 
     # ---------- read endpoints ----------
 
@@ -140,7 +158,8 @@ class AkahuClient:
         return [Account.model_validate(item) for item in data["items"]]
 
     async def get_account(self, account_id: str) -> Account:
-        data = await self._request("GET", f"/accounts/{account_id}")
+        account = self._path_segment(account_id, name="account_id")
+        data = await self._request("GET", f"/accounts/{account}")
         return Account.model_validate(data["item"])
 
     async def get_transactions(
@@ -161,7 +180,8 @@ class AkahuClient:
         return [Transaction.model_validate(item) for item in data["items"]]
 
     async def get_transaction(self, transaction_id: str) -> Transaction:
-        data = await self._request("GET", f"/transactions/{transaction_id}")
+        transaction = self._path_segment(transaction_id, name="transaction_id")
+        data = await self._request("GET", f"/transactions/{transaction}")
         return Transaction.model_validate(data["item"])
 
     async def iter_transactions(
@@ -195,7 +215,8 @@ class AkahuClient:
 
     async def get_account_pending_transactions(self, account_id: str) -> list[Transaction]:
         """Pending transactions for one specific account."""
-        data = await self._request("GET", f"/accounts/{account_id}/transactions/pending")
+        account = self._path_segment(account_id, name="account_id")
+        data = await self._request("GET", f"/accounts/{account}/transactions/pending")
         return [Transaction.model_validate(item) for item in data["items"]]
 
     async def get_account_transactions(
@@ -217,8 +238,9 @@ class AkahuClient:
             params["end"] = end
         if cursor:
             params["cursor"] = cursor
+        account = self._path_segment(account_id, name="account_id")
         data = await self._request(
-            "GET", f"/accounts/{account_id}/transactions", params=params or None
+            "GET", f"/accounts/{account}/transactions", params=params or None
         )
         items = [Transaction.model_validate(item) for item in data["items"]]
         next_cursor = (data.get("cursor") or {}).get("next")
@@ -258,7 +280,8 @@ class AkahuClient:
         return RefreshResult.model_validate(data)
 
     async def refresh_one(self, account_id: str) -> RefreshResult:
-        data = await self._request("POST", f"/refresh/{account_id}")
+        account = self._path_segment(account_id, name="account_id")
+        data = await self._request("POST", f"/refresh/{account}")
         return RefreshResult.model_validate(data)
 
     async def report_transaction_issue(
@@ -283,7 +306,8 @@ class AkahuClient:
             body["comment"] = comment
         if other_transaction_id:
             body["other_id"] = other_transaction_id
-        data = await self._request("POST", f"/support/{transaction_id}", json=body)
+        transaction = self._path_segment(transaction_id, name="transaction_id")
+        data = await self._request("POST", f"/support/{transaction}", json=body)
         return SupportRequest.model_validate(data)
 
     async def verify_name(
@@ -312,6 +336,9 @@ class AkahuClient:
             body["middle_name"] = middle_name
         if initials:
             body["initials"] = initials
-        path = "/verify/name" if account_id is None else f"/verify/name/{account_id}"
+        path = "/verify/name"
+        if account_id is not None:
+            account = self._path_segment(account_id, name="account_id")
+            path = f"/verify/name/{account}"
         data = await self._request("POST", path, json=body)
         return VerifyNameResult.model_validate(data)
