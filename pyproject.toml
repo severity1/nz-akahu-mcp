@@ -39,6 +39,7 @@ dev = [
 
 [project.scripts]
 nz-akahu-mcp = "nz_akahu_mcp.server:main"
+nz-akahu-mcp-http = "nz_akahu_mcp.server:http_main"
 
 [project.urls]
 Homepage = "https://github.com/severity1/nz-akahu-mcp"
