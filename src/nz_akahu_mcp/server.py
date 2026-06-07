@@ -13,10 +13,21 @@ from nz_akahu_mcp.tools import accounts, identity, transactions
 
 logger = logging.getLogger(__name__)
 
+SERVER_INSTRUCTIONS = (
+    "Use Akahu tools only for the connected user's New Zealand banking data. "
+    "For last-month transactions, call txn_get_transactions with explicit "
+    "start_date and end_date values. Prefer read tools. Write tools refresh "
+    "data or send support/identity requests and are guarded by read-only mode "
+    "and consent."
+)
+
 
 def build_server() -> FastMCP[Any]:
     """Construct the root FastMCP server with all sub-servers mounted."""
-    mcp: FastMCP[Any] = FastMCP("nz-akahu-mcp")
+    mcp: FastMCP[Any] = FastMCP(
+        "nz-akahu-mcp",
+        instructions=SERVER_INSTRUCTIONS,
+    )
     mcp.mount(accounts.server, namespace="acct")
     mcp.mount(transactions.server, namespace="txn")
     mcp.mount(identity.server, namespace="id")

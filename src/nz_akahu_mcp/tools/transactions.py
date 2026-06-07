@@ -14,6 +14,10 @@ from nz_akahu_mcp.safety import (
     elicit_value,
     require_write_consent,
 )
+from nz_akahu_mcp.tool_metadata import (
+    NON_DESTRUCTIVE_WRITE_ANNOTATIONS,
+    READ_ONLY_ANNOTATIONS,
+)
 
 server: FastMCP[Any] = FastMCP("transactions")
 
@@ -43,7 +47,7 @@ def _summarise(txn: Transaction) -> dict[str, Any]:
     }
 
 
-@server.tool
+@server.tool(title="Get Transactions", annotations=READ_ONLY_ANNOTATIONS)
 async def get_transactions(
     account_id: str | None = None,
     start_date: str | None = None,
@@ -91,7 +95,7 @@ async def get_transactions(
     return {"transactions": [_summarise(t) for t in collected]}
 
 
-@server.tool
+@server.tool(title="Get Transaction", annotations=READ_ONLY_ANNOTATIONS)
 async def get_transaction(transaction_id: str) -> dict[str, Any]:
     """Fetch one transaction by id.
 
@@ -106,7 +110,7 @@ async def get_transaction(transaction_id: str) -> dict[str, Any]:
     return _summarise(txn)
 
 
-@server.tool
+@server.tool(title="Get Transactions By IDs", annotations=READ_ONLY_ANNOTATIONS)
 async def get_transactions_by_ids(ids: list[str]) -> dict[str, Any]:
     """Batch-fetch transactions by their ids in one request.
 
@@ -121,7 +125,7 @@ async def get_transactions_by_ids(ids: list[str]) -> dict[str, Any]:
     return {"transactions": [_summarise(t) for t in txns]}
 
 
-@server.tool
+@server.tool(title="Get Pending Transactions", annotations=READ_ONLY_ANNOTATIONS)
 async def get_pending_transactions() -> dict[str, Any]:
     """List all pending (not-yet-settled) transactions across the user's accounts.
 
@@ -136,7 +140,7 @@ async def get_pending_transactions() -> dict[str, Any]:
     return {"transactions": [_summarise(t) for t in txns]}
 
 
-@server.tool
+@server.tool(title="Search Transactions", annotations=READ_ONLY_ANNOTATIONS)
 async def search_transactions(query: str, limit: int = 50) -> dict[str, Any]:
     """Case-insensitive substring search across description and merchant.name.
 
@@ -162,7 +166,10 @@ async def search_transactions(query: str, limit: int = 50) -> dict[str, Any]:
     return {"transactions": [_summarise(t) for t in matches]}
 
 
-@server.tool
+@server.tool(
+    title="Report Transaction Issue",
+    annotations=NON_DESTRUCTIVE_WRITE_ANNOTATIONS,
+)
 @require_write_consent(
     "Report an issue with transaction {transaction_id} to Akahu support staff. "
     "Issue type: {issue_type}.",

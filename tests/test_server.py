@@ -35,6 +35,52 @@ async def test_root_server_exposes_all_14_tools(fake_env: None) -> None:
     assert names == expected
 
 
+async def test_root_server_sets_chatgpt_instructions(fake_env: None) -> None:
+    from nz_akahu_mcp.server import SERVER_INSTRUCTIONS, build_server
+
+    mcp = build_server()
+    assert "last-month transactions" in SERVER_INSTRUCTIONS
+    assert len(SERVER_INSTRUCTIONS[:512]) == len(SERVER_INSTRUCTIONS)
+    assert mcp._mcp_server.instructions == SERVER_INSTRUCTIONS
+
+
+async def test_all_tools_have_apps_sdk_titles_and_annotations(fake_env: None) -> None:
+    """ChatGPT Apps SDK treats missing tool annotations as a validation error."""
+    from nz_akahu_mcp.server import build_server
+
+    expected_write_tools = {
+        "acct_refresh_all_accounts",
+        "acct_refresh_account",
+        "txn_report_transaction_issue",
+        "id_verify_name",
+    }
+    idempotent_write_tools = {
+        "acct_refresh_all_accounts",
+        "acct_refresh_account",
+    }
+
+    mcp = build_server()
+    tools = await mcp.list_tools()
+
+    for tool in tools:
+        assert tool.title, f"{tool.name} is missing a human-readable title"
+        assert tool.annotations is not None, f"{tool.name} is missing annotations"
+
+        annotations = tool.annotations
+        if tool.name in expected_write_tools:
+            assert annotations.readOnlyHint is False
+            assert annotations.openWorldHint is False
+            assert annotations.destructiveHint is False
+            if tool.name in idempotent_write_tools:
+                assert annotations.idempotentHint is True
+            else:
+                assert annotations.idempotentHint is None
+        else:
+            assert annotations.readOnlyHint is True
+            assert annotations.openWorldHint is None
+            assert annotations.destructiveHint is None
+
+
 async def test_composed_plugin_names_fit_kiro_limit(fake_env: None) -> None:
     """Guard: marketplace-plugin-composed names must stay within Kiro's 64-char cap."""
     from nz_akahu_mcp.server import build_server

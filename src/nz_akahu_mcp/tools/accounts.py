@@ -10,6 +10,10 @@ from nz_akahu_mcp import deps
 from nz_akahu_mcp.formatting import format_money, mask_account
 from nz_akahu_mcp.models import Account
 from nz_akahu_mcp.safety import require_write_consent
+from nz_akahu_mcp.tool_metadata import (
+    IDEMPOTENT_WRITE_ANNOTATIONS,
+    READ_ONLY_ANNOTATIONS,
+)
 
 server: FastMCP[Any] = FastMCP("accounts")
 
@@ -30,7 +34,7 @@ def _summarise_account(account: Account) -> dict[str, Any]:
     }
 
 
-@server.tool
+@server.tool(title="List Accounts", annotations=READ_ONLY_ANNOTATIONS)
 async def list_accounts() -> dict[str, Any]:
     """List every connected account with masked numbers and formatted balances.
 
@@ -47,7 +51,7 @@ async def list_accounts() -> dict[str, Any]:
     return {"accounts": [_summarise_account(a) for a in accounts]}
 
 
-@server.tool
+@server.tool(title="Get Account", annotations=READ_ONLY_ANNOTATIONS)
 async def get_account(account_id: str) -> dict[str, Any]:
     """Fetch a single account by id.
 
@@ -62,7 +66,7 @@ async def get_account(account_id: str) -> dict[str, Any]:
     return _summarise_account(account)
 
 
-@server.tool
+@server.tool(title="Get Account Pending Transactions", annotations=READ_ONLY_ANNOTATIONS)
 async def get_pending_transactions(account_id: str) -> dict[str, Any]:
     """List pending (not-yet-settled) transactions for one account.
 
@@ -97,7 +101,7 @@ async def get_pending_transactions(account_id: str) -> dict[str, Any]:
     }
 
 
-@server.tool
+@server.tool(title="Get Account Balance", annotations=READ_ONLY_ANNOTATIONS)
 async def get_account_balance(account_id: str) -> dict[str, Any]:
     """Return just the balance for an account. Cheaper than get_account.
 
@@ -122,7 +126,10 @@ async def get_account_balance(account_id: str) -> dict[str, Any]:
     }
 
 
-@server.tool
+@server.tool(
+    title="Refresh All Accounts",
+    annotations=IDEMPOTENT_WRITE_ANNOTATIONS,
+)
 @require_write_consent(
     "Refresh data for all your connected accounts. This is rate-limited by your bank.",
     automatable=True,
@@ -141,7 +148,10 @@ async def refresh_all_accounts(*, ctx: Context) -> dict[str, Any]:
     return {"success": result.success, "message": result.message}
 
 
-@server.tool
+@server.tool(
+    title="Refresh Account",
+    annotations=IDEMPOTENT_WRITE_ANNOTATIONS,
+)
 @require_write_consent(
     "Refresh data for account {account_id}. Rate-limited by your bank.",
     automatable=True,
