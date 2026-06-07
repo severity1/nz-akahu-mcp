@@ -1,0 +1,23 @@
+[Unit]
+Description=nz-akahu-mcp authenticated HTTP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nz-akahu-mcp
+Group=nz-akahu-mcp
+WorkingDirectory=/opt/nz-akahu-mcp
+EnvironmentFile=/opt/nz-akahu-mcp/nz-akahu.env
+ExecStart=/opt/nz-akahu-mcp/.venv/bin/nz-akahu-mcp-http
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/nz-akahu-mcp
+
+[Install]
+WantedBy=multi-user.target
