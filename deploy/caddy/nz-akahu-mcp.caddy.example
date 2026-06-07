@@ -1,0 +1,15 @@
+# Example HTTPS reverse proxy for the authenticated HTTP transport.
+# Replace mcp.example.com with your hostname.
+#
+# Keep the MCP server bound to 127.0.0.1 and let Caddy terminate HTTPS.
+# Do not remove app-level bearer or OAuth authentication from the MCP server.
+
+mcp.example.com {
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:8091
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}
