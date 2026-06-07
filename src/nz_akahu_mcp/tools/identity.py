@@ -13,11 +13,15 @@ from fastmcp import Context, FastMCP
 
 from nz_akahu_mcp import deps
 from nz_akahu_mcp.safety import require_write_consent
+from nz_akahu_mcp.tool_metadata import (
+    NON_DESTRUCTIVE_WRITE_ANNOTATIONS,
+    READ_ONLY_ANNOTATIONS,
+)
 
 server: FastMCP[Any] = FastMCP("identity")
 
 
-@server.tool
+@server.tool(title="Get Me", annotations=READ_ONLY_ANNOTATIONS)
 async def get_me() -> dict[str, Any]:
     """Return identity/profile data for the connected Akahu user.
 
@@ -36,7 +40,10 @@ async def get_me() -> dict[str, Any]:
     }
 
 
-@server.tool
+@server.tool(
+    title="Verify Name",
+    annotations=NON_DESTRUCTIVE_WRITE_ANNOTATIONS,
+)
 @require_write_consent(
     "Verify the name '{given_name} {family_name}' "
     "(account scope: {account_id}). This sends an identity check to your bank "
