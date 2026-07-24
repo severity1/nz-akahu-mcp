@@ -202,10 +202,20 @@ in lockstep (`pyproject.toml`, `plugin/.claude-plugin/plugin.json`,
 `mcpb/manifest.json`), tag `vX.Y.Z`, push, publish GitHub Release. The
 workflow's `test`, `build` (PyPI), and `build-mcpb` jobs all gate on a
 version-matches-tag assertion. Trusted Publishing (OIDC) handles PyPI auth;
-`GITHUB_TOKEN` handles `gh release upload` for the `.mcpb`. Marketplace
-clients re-pull the plugin from the tagged commit; no separate marketplace
-release is required. Desktop users redownload the `.mcpb` from the Releases
-page.
+`GITHUB_TOKEN` handles `gh release upload` for the `.mcpb`. Desktop users
+redownload the `.mcpb` from the Releases page.
+
+**Marketplace requires a fourth, cross-repo bump.** The
+`severity1/severity1-marketplace` catalog lists this plugin via a `git-subdir`
+source with `ref` pinned to the release tag. Marketplace clients resolve the
+plugin version from `plugin.json` and only re-pull when the marketplace index
+(`marketplace.json`) itself changes - bumping `plugin.json` here is invisible
+to them until the catalog's `ref` moves. So each release must also update
+`severity1-marketplace/.claude-plugin/marketplace.json` to pin
+`plugins[nz-akahu-mcp].source.ref` to the new `vX.Y.Z` tag. Omitting this
+strands marketplace users on the previously pinned version (this is what
+happened for 0.1.2-0.1.5). Users pick up the update with
+`/plugin marketplace update severity1-marketplace`.
 
 ## Style conventions (from user's global instructions)
 
