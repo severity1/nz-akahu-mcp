@@ -91,6 +91,16 @@ and `uvx nz-akahu-mcp` / `pip install nz-akahu-mcp` start resolving it. The
 https://github.com/severity1/nz-akahu-mcp/releases/tag/vX.Y.Z and is
 downloadable by Claude Desktop users.
 
+4. **Bump the marketplace pin (separate repo).** In
+   `severity1/severity1-marketplace`, update
+   `.claude-plugin/marketplace.json` so
+   `plugins[nz-akahu-mcp].source.ref` is `vX.Y.Z`, then commit and push to
+   its `main`. This is mandatory: the `git-subdir` source only serves a new
+   version when the catalog's `ref` moves. Skipping it strands marketplace
+   users on the previously pinned version even though PyPI and the `.mcpb`
+   already updated. Existing users then run
+   `/plugin marketplace update severity1-marketplace` to pick it up.
+
 ## Manual publish (fallback)
 
 ```bash
