@@ -848,7 +848,7 @@ wheels = [
 
 [[package]]
 name = "nz-akahu-mcp"
-version = "0.1.4"
+version = "0.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
@@ -856,6 +856,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
+    { name = "sse-starlette" },
 ]
 
 [package.optional-dependencies]
@@ -881,6 +882,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+    { name = "sse-starlette", specifier = "!=3.4.6" },
 ]
 provides-extras = ["dev"]
 
