@@ -172,6 +172,60 @@ The server speaks MCP over stdio. Inspect tool calls with:
 uv run fastmcp dev src/nz_akahu_mcp/server.py
 ```
 
+## Authenticated Streamable HTTP
+
+Stdio remains the default and is the recommended local transport. The optional
+Streamable HTTP entrypoint is for deployments that are protected by app-level
+authentication and HTTPS.
+
+Bearer mode is the default HTTP mode:
+
+```bash
+export NZ_AKAHU_MCP_AUTH_MODE=bearer
+export NZ_AKAHU_MCP_BEARER_TOKEN="<TOKEN>"
+export NZ_AKAHU_MCP_HTTP_HOST=127.0.0.1
+export NZ_AKAHU_MCP_HTTP_PORT=8091
+export NZ_AKAHU_MCP_HTTP_PATH=/mcp
+uv run nz-akahu-mcp-http
+```
+
+OAuth mode is for public HTTPS web connectors such as ChatGPT custom
+connectors. This server is both the OAuth authorization server and the MCP
+resource server; Google is only the upstream login provider used to verify an
+allowlisted Google account. Akahu app/user tokens stay in this server's runtime
+environment and are not shared with Google.
+
+```bash
+export NZ_AKAHU_MCP_AUTH_MODE=oauth
+export NZ_AKAHU_MCP_GOOGLE_CLIENT_ID="<CLIENT_ID>"
+export NZ_AKAHU_MCP_GOOGLE_CLIENT_SECRET="<CLIENT_SECRET>"
+export NZ_AKAHU_MCP_PUBLIC_BASE_URL="https://mcp.example.com/akahu-mcp"
+export NZ_AKAHU_MCP_ALLOWED_USERS="you@example.com"
+# Or restrict by hosted domain:
+# export NZ_AKAHU_MCP_ALLOWED_DOMAINS="example.com"
+export NZ_AKAHU_MCP_HTTP_HOST=127.0.0.1
+export NZ_AKAHU_MCP_HTTP_PORT=8091
+export NZ_AKAHU_MCP_HTTP_PATH=/mcp
+uv run nz-akahu-mcp-http
+```
+
+For Google OAuth, create a Google Cloud Web application client and configure
+the authorized redirect URI from `NZ_AKAHU_MCP_PUBLIC_BASE_URL`:
+
+```text
+https://mcp.example.com/akahu-mcp/auth/callback
+```
+
+Point connector clients at the MCP transport URL, for example
+`https://mcp.example.com/akahu-mcp/mcp`, not at Google OAuth endpoints. Do not
+expose this banking MCP server publicly without HTTPS, read-only defaults, and
+either a bearer token or an OAuth allowlist.
+
+Official Google references:
+
+- [Using OAuth 2.0 for Web Server Applications](https://developers.google.com/identity/protocols/oauth2/web-server)
+- [Manage OAuth Clients](https://support.google.com/cloud/answer/6158849)
+
 ## Architecture
 
 ```
