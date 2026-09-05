@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 
 def test_loads_from_env(fake_env: None) -> None:
@@ -16,6 +17,34 @@ def test_loads_from_env(fake_env: None) -> None:
     assert cfg.automation_bypass is False
     assert cfg.request_timeout == 5
     assert cfg.log_level == "INFO"
+
+
+def test_base_url_trailing_slash_is_normalised(
+    monkeypatch: pytest.MonkeyPatch, fake_env: None
+) -> None:
+    from nz_akahu_mcp.config import AkahuConfig
+
+    monkeypatch.setenv("AKAHU_BASE_URL", "https://api.akahu.io/v1/")
+    assert AkahuConfig().base_url == "https://api.akahu.io/v1"
+
+
+@pytest.mark.parametrize(
+    ("base_url", "message"),
+    [
+        ("http://api.akahu.io/v1", "https"),
+        ("https:///v1", "host"),
+        ("https://api.akahu.io/v1?debug=true", "query"),
+        ("https://api.akahu.io/v1#frag", "fragment"),
+    ],
+)
+def test_rejects_unsafe_base_urls(
+    monkeypatch: pytest.MonkeyPatch, fake_env: None, base_url: str, message: str
+) -> None:
+    from nz_akahu_mcp.config import AkahuConfig
+
+    monkeypatch.setenv("AKAHU_BASE_URL", base_url)
+    with pytest.raises(ValidationError, match=message):
+        AkahuConfig()
 
 
 def test_is_configured_true_when_both_tokens_present(fake_env: None) -> None:
@@ -53,8 +82,6 @@ def test_auth_headers_contain_both_tokens(fake_env: None) -> None:
 
 def test_bypass_with_read_only_raises(monkeypatch: pytest.MonkeyPatch, fake_env: None) -> None:
     """Incoherent combination must fail loudly at startup, not silently ignore."""
-    from pydantic import ValidationError
-
     from nz_akahu_mcp.config import AkahuConfig
 
     monkeypatch.setenv("AKAHU_READ_ONLY", "true")

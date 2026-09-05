@@ -24,6 +24,25 @@ async def test_includes_dual_auth_headers(
     assert call.request.headers["X-Akahu-Id"] == "app_token_test"
 
 
+def test_missing_credentials_refuses_client_init(
+    monkeypatch: pytest.MonkeyPatch, fake_env: None
+) -> None:
+    from nz_akahu_mcp.client import AkahuClient
+    from nz_akahu_mcp.config import AkahuConfig
+    from nz_akahu_mcp.safety import MissingCredentialsError
+
+    monkeypatch.setenv("AKAHU_USER_TOKEN", "")
+    with pytest.raises(MissingCredentialsError):
+        AkahuClient(AkahuConfig())
+
+
+def test_path_segment_rejects_empty_value(fake_env: None) -> None:
+    from nz_akahu_mcp.client import AkahuClient
+
+    with pytest.raises(ValueError, match="account_id"):
+        AkahuClient._path_segment("", name="account_id")
+
+
 # ----- read endpoints -----
 
 
@@ -49,6 +68,25 @@ async def test_get_account(akahu_client: Any, respx_mock: respx.MockRouter) -> N
     respx_mock.get("/accounts/acc_chq_001").mock(return_value=httpx.Response(200, json=single))
     acc = await akahu_client.get_account("acc_chq_001")
     assert acc.id == "acc_chq_001"
+
+
+async def test_path_segments_are_percent_encoded(
+    akahu_client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = load_fixture("accounts")
+    captured: dict[str, str] = {}
+
+    async def fake_request(method: str, path: str, **_: Any) -> dict[str, Any]:
+        captured["method"] = method
+        captured["path"] = path
+        return {"success": True, "item": data["items"][0]}
+
+    monkeypatch.setattr(akahu_client, "_request", fake_request)
+    await akahu_client.get_account("acc/../me?x=1#frag")
+    assert captured == {
+        "method": "GET",
+        "path": "/accounts/acc%2F..%2Fme%3Fx%3D1%23frag",
+    }
 
 
 async def test_get_transactions(akahu_client: Any, respx_mock: respx.MockRouter) -> None:
@@ -383,6 +421,20 @@ async def test_honours_retry_after_on_429(
     assert 7.0 in sleeps
 
 
+def test_negative_retry_after_falls_back(fake_env: None) -> None:
+    from nz_akahu_mcp.client import AkahuClient
+
+    response = httpx.Response(429, headers={"Retry-After": "-1"})
+    assert AkahuClient._retry_after_seconds(response, default=2.0) == 2.0
+
+
+def test_large_retry_after_is_capped(fake_env: None) -> None:
+    from nz_akahu_mcp.client import AkahuClient
+
+    response = httpx.Response(429, headers={"Retry-After": "999"})
+    assert AkahuClient._retry_after_seconds(response, default=2.0) == 60.0
+
+
 async def test_handles_missing_retry_after_header(
     akahu_client: Any, respx_mock: respx.MockRouter, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -428,6 +480,27 @@ async def test_handles_invalid_retry_after_header(
     await akahu_client.get_me()
 
 
+async def test_exhausted_429_raises_http_status(
+    akahu_client: Any, respx_mock: respx.MockRouter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import nz_akahu_mcp.client as client_mod
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr(client_mod.asyncio, "sleep", no_sleep)
+    call_count = {"n": 0}
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        call_count["n"] += 1
+        return httpx.Response(429)
+
+    respx_mock.get("/me").mock(side_effect=respond)
+    with pytest.raises(httpx.HTTPStatusError):
+        await akahu_client.get_me()
+    assert call_count["n"] == 3
+
+
 async def test_4xx_other_than_429_does_not_retry(
     akahu_client: Any, respx_mock: respx.MockRouter
 ) -> None:
@@ -458,6 +531,19 @@ async def test_tokens_never_appear_in_logs(
     blob = "\n".join(r.message for r in caplog.records)
     assert "user_token_test" not in blob
     assert "app_token_test" not in blob
+
+
+async def test_response_bodies_never_appear_in_logs(
+    akahu_client: Any,
+    respx_mock: respx.MockRouter,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    respx_mock.get("/me").mock(return_value=httpx.Response(200, json=load_fixture("me")))
+    with caplog.at_level(logging.DEBUG, logger="nz_akahu_mcp.client"):
+        await akahu_client.get_me()
+    blob = "\n".join(r.message for r in caplog.records)
+    assert "test.user@example.nz" not in blob
+    assert "user_test_001" not in blob
 
 
 async def test_logs_method_path_and_status(

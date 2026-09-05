@@ -8,8 +8,9 @@ See https://developers.akahu.nz/docs/personal-apps for the dual-header auth mode
 from __future__ import annotations
 
 from typing import Self
+from urllib.parse import urlsplit
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +35,21 @@ class AkahuConfig(BaseSettings):
     )
     request_timeout: int = Field(default=10, ge=1, le=120)
     log_level: str = Field(default="INFO")
+
+    @field_validator("base_url")
+    @classmethod
+    def _validate_base_url(cls, value: str) -> str:
+        """Require an absolute HTTPS URL without request-specific components."""
+        parsed = urlsplit(value)
+        if parsed.scheme != "https":
+            raise ValueError("base_url must use https")
+        if not parsed.netloc:
+            raise ValueError("base_url must include a host")
+        if parsed.query:
+            raise ValueError("base_url must not include a query string")
+        if parsed.fragment:
+            raise ValueError("base_url must not include a fragment")
+        return value.rstrip("/")
 
     @model_validator(mode="after")
     def _reject_incoherent_bypass(self) -> Self:

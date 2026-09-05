@@ -253,7 +253,7 @@ at startup.
 ## Privacy & security
 
 - Account numbers are masked: `01-1234-1234567-00` -> `01-****-***4567-00`.
-- Tokens are never logged. The DEBUG-level body log is response-only.
+- Tokens and API response bodies are never logged.
 - All filters are applied client-side after the API call returns. Akahu has no field-level access control for Personal Apps.
 - The server runs entirely on your machine. The only outbound traffic is to `https://api.akahu.io/v1`.
 
